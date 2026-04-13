@@ -1,0 +1,7 @@
+﻿{
+  "video_path": "videos/example.mp4",
+  "output_dir": "masks/example",
+  "object_id": 1,
+  "bbox_xyxy": [120, 80, 360, 320],
+  "checkpoint": "sam2.1_hiera_small"
+}

@@ -1,0 +1,61 @@
+# Local-only context
+LLM_CONTEXT.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# IDE / OS
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and temp files
+logs/*
+!logs/.gitkeep
+*.log
+*.tmp
+*.temp
+
+# Runtime data, artifacts, and generated outputs
+data/**
+!data/
+!data/videos/
+!data/videos/.gitkeep
+!data/masks/
+!data/masks/.gitkeep
+!data/3dgs/
+!data/3dgs/.gitkeep
+!data/frames_videos/
+!data/frames_videos/.gitkeep
+
+# Model checkpoints and downloaded weights
+models/**
+!models/
+!models/sam2/
+models/sam2/*
+!models/sam2/.gitkeep
+
+# Local tools and downloaded viewer binaries
+/tools/3dgs-viewer/
+
+# Common large reconstruction artifacts
+*.ply
+*.pt
+*.pth
+*.ckpt

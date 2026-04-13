@@ -1,0 +1,7 @@
+﻿{
+  "video_path": "videos/wood_star.mp4",
+  "output_dir": "masks/wood_star",
+  "object_id": 1,
+  "bbox_xyxy": [113, 281, 587, 837],
+  "checkpoint": "sam2.1_hiera_small"
+}

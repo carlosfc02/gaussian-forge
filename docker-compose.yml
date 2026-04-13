@@ -1,0 +1,60 @@
+﻿services:
+  sam2-seg:
+    build:
+      context: .
+      dockerfile: docker/sam2/Dockerfile
+    image: tfg/sam2-seg:latest
+    working_dir: /app
+    environment:
+      PYTHONUNBUFFERED: "1"
+      DATA_ROOT: /data
+      JOBS_ROOT: /jobs
+      LOGS_ROOT: /logs
+      SAM2_REPO_DIR: /opt/sam2
+      SAM2_CHECKPOINT_DIR: /models/sam2
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
+    volumes:
+      - ./data:/data
+      - ./jobs:/jobs
+      - ./logs:/logs
+      - ./models:/models
+    gpus: all
+    stdin_open: true
+    tty: true
+    command: ["python", "/app/scripts/segment_video.py", "--help"]
+
+  colmap:
+    build:
+      context: .
+      dockerfile: docker/colmap/Dockerfile
+    image: tfg/colmap:latest
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics
+      QT_QPA_PLATFORM: offscreen
+    volumes:
+      - ./data:/data
+      - ./logs:/logs
+    gpus: all
+    stdin_open: true
+    tty: true
+    command: ["colmap", "-h"]
+
+  gaussian-splatting:
+    build:
+      context: .
+      dockerfile: docker/gaussian-splatting/Dockerfile
+    image: tfg/gaussian-splatting:latest
+    working_dir: /opt/gaussian-splatting
+    environment:
+      PYTHONUNBUFFERED: "1"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics
+    volumes:
+      - ./data:/data
+      - ./logs:/logs
+    gpus: all
+    stdin_open: true
+    tty: true
+    command: ["python", "train.py", "--help"]

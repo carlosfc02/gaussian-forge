@@ -1,0 +1,6 @@
+﻿data/
+jobs/
+logs/
+models/
+__pycache__/
+*.pyc
