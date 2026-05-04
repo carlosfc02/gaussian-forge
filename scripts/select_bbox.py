@@ -7,7 +7,7 @@ from pathlib import Path
 
 import cv2
 
-from sam2_common import get_data_root, resolve_path_under_root
+from sam2_common import DEFAULT_CHECKPOINT, get_data_root, resolve_path_under_root
 
 
 WINDOW_NAME = "Select BBox"
@@ -15,7 +15,7 @@ WINDOW_NAME = "Select BBox"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Open a video frame, let the user drag a bounding box, and print bbox_xyxy.",
+        description="Open a video frame, let the user drag a bounding box, and optionally create a segmentation job.",
     )
     parser.add_argument(
         "--video",
@@ -31,6 +31,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--save-preview",
         help="Optional output path relative to data/ for the selected frame with the drawn bbox.",
+    )
+    parser.add_argument(
+        "--job",
+        help="Optional output path for the generated segmentation job JSON. Defaults to jobs/segmentation/<video_stem>_job.json.",
+    )
+    parser.add_argument(
+        "--mask-output-dir",
+        help="Optional output_dir value written into the generated job. Defaults to masks/<video_stem>.",
+    )
+    parser.add_argument(
+        "--object-id",
+        type=int,
+        default=1,
+        help="Object id written into the generated job. Defaults to 1.",
+    )
+    parser.add_argument(
+        "--checkpoint",
+        default=DEFAULT_CHECKPOINT,
+        help=f"Checkpoint name written into the generated job. Defaults to {DEFAULT_CHECKPOINT}.",
     )
     return parser.parse_args()
 
@@ -83,6 +102,48 @@ def save_preview(frame, bbox_xyxy: list[int], preview_path: Path) -> None:
         raise RuntimeError(f"Could not save preview image to: {preview_path}")
 
 
+def get_repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def resolve_job_path(job_arg: str | None, video_path_arg: str) -> Path:
+    repo_root = get_repo_root()
+    video_stem = Path(video_path_arg).stem
+    default_path = repo_root / "jobs" / "segmentation" / f"{video_stem}_job.json"
+    if job_arg is None:
+        return default_path
+
+    candidate = Path(job_arg)
+    if candidate.is_absolute():
+        return candidate.resolve()
+    return (repo_root / candidate).resolve()
+
+
+def build_job_payload(
+    *,
+    video_path_arg: str,
+    mask_output_dir_arg: str | None,
+    object_id: int,
+    bbox_xyxy: list[int],
+    checkpoint: str,
+) -> dict:
+    video_stem = Path(video_path_arg).stem
+    return {
+        "video_path": Path(video_path_arg).as_posix(),
+        "output_dir": Path(mask_output_dir_arg or f"masks/{video_stem}").as_posix(),
+        "object_id": int(object_id),
+        "bbox_xyxy": bbox_xyxy,
+        "checkpoint": checkpoint,
+    }
+
+
+def write_job(job_path: Path, job_payload: dict) -> None:
+    job_path.parent.mkdir(parents=True, exist_ok=True)
+    with job_path.open("w", encoding="utf-8") as handle:
+        json.dump(job_payload, handle, indent=2, ensure_ascii=True)
+        handle.write("\n")
+
+
 def main() -> int:
     args = parse_args()
     data_root = get_data_root()
@@ -101,16 +162,34 @@ def main() -> int:
         save_preview(frame, bbox_xyxy, preview_path)
         print(f"Saved preview to: {preview_path}")
 
+    if args.object_id < 1:
+        raise ValueError("object-id must be greater than or equal to 1.")
+
+    job_path = resolve_job_path(args.job, args.video)
+    job_payload = build_job_payload(
+        video_path_arg=args.video,
+        mask_output_dir_arg=args.mask_output_dir,
+        object_id=args.object_id,
+        bbox_xyxy=bbox_xyxy,
+        checkpoint=args.checkpoint,
+    )
+    write_job(job_path, job_payload)
+    print(f"Saved segmentation job to: {job_path}")
+
     payload = {
         "video_path": args.video,
         "frame_index": args.frame_index,
         "frame_size": {"width": width, "height": height},
         "frame_count": frame_count,
         "bbox_xyxy": bbox_xyxy,
+        "job_path": str(job_path),
+        "job": job_payload,
     }
 
     print("\nJSON snippet:")
     print(json.dumps({"bbox_xyxy": bbox_xyxy}, ensure_ascii=True))
+    print("\nGenerated job:")
+    print(json.dumps(job_payload, indent=2, ensure_ascii=True))
     print("\nDetailed output:")
     print(json.dumps(payload, indent=2, ensure_ascii=True))
     return 0

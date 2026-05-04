@@ -1,0 +1,12 @@
+{
+  "video_path": "videos/candle.mp4",
+  "output_dir": "masks/candle",
+  "object_id": 1,
+  "bbox_xyxy": [
+    122,
+    417,
+    441,
+    752
+  ],
+  "checkpoint": "sam2.1_hiera_small"
+}

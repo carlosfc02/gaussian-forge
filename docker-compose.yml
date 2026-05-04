@@ -58,3 +58,24 @@
     stdin_open: true
     tty: true
     command: ["python", "train.py", "--help"]
+
+  sugar:
+    build:
+      context: .
+      dockerfile: docker/sugar/Dockerfile
+    image: tfg/sugar:latest
+    working_dir: /opt/SuGaR
+    environment:
+      PYTHONUNBUFFERED: "1"
+      DATA_ROOT: /data
+      LOGS_ROOT: /logs
+      SUGAR_OUTPUT_ROOT: /data/sugar-output
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics
+    volumes:
+      - ./data:/data
+      - ./logs:/logs
+    gpus: all
+    stdin_open: true
+    tty: true
+    command: ["conda", "run", "--no-capture-output", "-n", "sugar", "python", "train_full_pipeline.py", "--help"]

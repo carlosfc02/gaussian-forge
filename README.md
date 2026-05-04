@@ -1,12 +1,13 @@
-# TFG Pipeline
+# GaussianForge
 
-Base scaffold for the TFG pipeline, starting with video object segmentation using SAM 2 inside Docker.
+GaussianForge is a reproducible pipeline for object-centric 3D reconstruction from video using SAM 2, COLMAP, 3D Gaussian Splatting, and SuGaR.
 
 ## Current components
 
 - `sam2-seg`: GPU-oriented container that segments one object in one video using an initial bounding box on frame `0`.
 - `colmap`: CUDA-enabled container for sparse reconstruction from the prepared dataset.
 - `gaussian-splatting`: Container for official 3DGS training on the COLMAP output.
+- `sugar`: Container for official SuGaR mesh-oriented training on top of the prepared COLMAP dataset and, by default, the vanilla 3DGS checkpoint.
 - `tools/3dgs-viewer`: Local Windows viewer binaries for real-time inspection of trained 3DGS scenes.
 
 ## Directory layout
@@ -14,6 +15,7 @@ Base scaffold for the TFG pipeline, starting with video object segmentation usin
 - `docker/sam2/`: Docker image definition for SAM 2.
 - `docker/colmap/`: Docker image definition for COLMAP.
 - `docker/gaussian-splatting/`: Docker image definition for official 3DGS training.
+- `docker/sugar/`: Docker image definition for official SuGaR training.
 - `scripts/`: host-side orchestration and preprocessing scripts.
 - `jobs/segmentation/`: JSON job definitions.
 - `data/videos/`: input videos.
@@ -25,7 +27,7 @@ Base scaffold for the TFG pipeline, starting with video object segmentation usin
 ## Build
 
 ```bash
-docker compose build sam2-seg colmap gaussian-splatting
+docker compose build sam2-seg colmap gaussian-splatting sugar
 ```
 
 ## Download a checkpoint
@@ -44,18 +46,39 @@ Run this on the host to open a frame and drag the bounding box with the mouse:
 python scripts/select_bbox.py --video videos/example.mp4 --frame-index 0 --save-preview masks/example_bbox_preview.png
 ```
 
-The script prints a ready-to-paste JSON snippet like:
+The script now also creates a segmentation job automatically by default at:
+
+- `jobs/segmentation/<video_stem>_job.json`
+
+For example, selecting a bbox for `videos/wood_star.mp4` writes:
+
+- `jobs/segmentation/wood_star_job.json`
+
+The generated job uses:
+
+- `output_dir = masks/<video_stem>`
+- `object_id = 1`
+- `checkpoint = sam2.1_hiera_small`
+
+Useful options:
+
+```bash
+python scripts/select_bbox.py --video videos/example.mp4 --job jobs/segmentation/my_scene.json --mask-output-dir masks/my_scene --object-id 1
+```
+
+The script still prints a ready-to-paste JSON snippet like:
 
 ```json
 {"bbox_xyxy": [120, 80, 360, 320]}
 ```
 
 `--video` and `--save-preview` are resolved relative to `data/`.
+`--job` is resolved relative to the repository root.
 
 ## Run segmentation
 
 1. Put your video under `data/videos/`.
-2. Create a job JSON under `jobs/segmentation/` using `jobs/segmentation/example_job.json` as a template.
+2. Run `scripts/select_bbox.py` to choose the box and generate the job automatically.
 3. Run:
 
 ```bash
@@ -146,6 +169,46 @@ For a quick smoke test:
 python scripts/train_3dgs.py --scene-dir 3dgs/wood_star --iterations 100
 ```
 
+## Run SuGaR on top of the prepared COLMAP dataset
+
+The SuGaR launcher consumes the same `gs/source` dataset and, by default, reuses the vanilla `3DGS` checkpoint at `gs/model`.
+
+Default command:
+
+```bash
+python scripts/train_sugar.py --scene-dir 3dgs/wood_star
+```
+
+Default behavior:
+
+- uses the official `train_full_pipeline.py` from SuGaR
+- reuses `data/3dgs/<scene>/gs/model` if it contains `iteration_7000`
+- writes official SuGaR `output/` folders under `data/sugar-output/`
+- uses `dn_consistency` regularization by default
+
+Main outputs:
+
+- `data/sugar-output/coarse/<scene>`
+- `data/sugar-output/coarse_mesh/<scene>`
+- `data/sugar-output/refined/<scene>`
+- `data/sugar-output/refined_mesh/<scene>`
+- `data/sugar-output/refined_ply/<scene>`
+
+Useful options:
+
+```bash
+python scripts/train_sugar.py --scene-dir 3dgs/wood_star --high-poly --refinement-time short
+python scripts/train_sugar.py --scene-dir 3dgs/wood_star --regularization density
+python scripts/train_sugar.py --scene-dir 3dgs/wood_star --from-scratch
+python scripts/train_sugar.py --scene-dir 3dgs/wood_star --bboxmin "(0.0,0.0,0.0)" --bboxmax "(1.0,1.0,1.0)"
+```
+
+Notes:
+
+- By default the launcher does not use SuGaR's eval split.
+- If you reuse an existing vanilla 3DGS model, SuGaR expects `point_cloud/iteration_7000/point_cloud.ply`.
+- `--from-scratch` tells SuGaR to train its own initial vanilla 3DGS stage for 7000 iterations.
+
 ## Install the local 3DGS viewer on Windows
 
 This downloads the official prebuilt SIBR viewer binaries recommended by the 3DGS authors:
@@ -184,6 +247,26 @@ Notes:
 - The real-time viewer executable is `tools/3dgs-viewer/viewer-dist/bin/SIBR_gaussianViewer_app.exe`.
 - The launcher now checks for CUDA 12 runtime and stops with a clear message if it is missing.
 
+## Open a SuGaR refined PLY in the local viewer
+
+Use the SuGaR-specific wrapper launcher when you want to inspect a refined `.ply` through the same SIBR viewer:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\open_sugar_viewer.ps1 -PlyPath sugar-output\refined_ply\source\your_model.ply -SourceDir 3dgs\wood_star\gs\source
+```
+
+Useful options:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\open_sugar_viewer.ps1 -PlyPath sugar-output\refined_ply\source\your_model.ply -SourceDir 3dgs\wood_star\gs\source -LoadImages
+```
+
+Notes:
+
+- `-PlyPath` is resolved relative to `data/` unless you pass an absolute path.
+- `-SourceDir` should point to the matching `gs/source` dataset.
+- The script creates a temporary viewer-compatible wrapper under `data/sugar-output/viewer/`.
+
 ## Job contract
 
 ```json
@@ -197,3 +280,7 @@ Notes:
 ```
 
 `video_path` and `output_dir` must be relative to `data/`.
+
+## Credits
+
+GaussianForge is developed as a Final Degree Project at the ULPGC with the collaboration of tutor José Miguel Santana Núñez.
