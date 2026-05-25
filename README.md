@@ -169,6 +169,33 @@ For a quick smoke test:
 python scripts/train_3dgs.py --scene-dir 3dgs/wood_star --iterations 100
 ```
 
+## Estimate an automatic SuGaR foreground bbox
+
+Before running SuGaR, you can estimate a 3D foreground box automatically from:
+
+- the selected COLMAP sparse model,
+- the aligned SAM 2 masks in `colmap/masks`.
+
+The estimator keeps sparse 3D points whose tracked 2D observations fall inside the object masks often enough, trims sparse outliers with percentiles, and adds a configurable margin.
+
+Default command:
+
+```bash
+python scripts/estimate_sugar_bbox.py --scene-dir 3dgs/wood_star
+```
+
+Useful options:
+
+```bash
+python scripts/estimate_sugar_bbox.py --scene-dir 3dgs/wood_star --min-foreground-ratio 0.7 --erode-pixels 2
+python scripts/estimate_sugar_bbox.py --scene-dir 3dgs/wood_star --lower-percentile 2 --upper-percentile 98 --padding-scale 0.03
+```
+
+Outputs:
+
+- `data/3dgs/<scene>/sugar_bbox_estimate.json`
+- a ready-to-copy `--bboxmin ... --bboxmax ...` command snippet for `train_sugar.py`
+
 ## Run SuGaR on top of the prepared COLMAP dataset
 
 The SuGaR launcher consumes the same `gs/source` dataset and, by default, reuses the vanilla `3DGS` checkpoint at `gs/model`.

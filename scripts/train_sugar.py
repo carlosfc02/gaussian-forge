@@ -159,6 +159,13 @@ def bool_str(value: bool) -> str:
     return "True" if value else "False"
 
 
+def shell_quote_bbox(value: str) -> str:
+    stripped = value.strip()
+    if stripped.startswith('"') and stripped.endswith('"'):
+        return stripped
+    return f'"{stripped}"'
+
+
 def run_command(command: list[str]) -> None:
     print("[cmd]", shlex.join(command))
     subprocess.run(command, check=True)
@@ -313,9 +320,9 @@ def main() -> int:
     if args.refinement_iterations is not None:
         command.extend(["-f", str(args.refinement_iterations)])
     if args.bboxmin is not None:
-        command.extend(["--bboxmin", args.bboxmin])
+        command.extend(["--bboxmin", shell_quote_bbox(args.bboxmin)])
     if args.bboxmax is not None:
-        command.extend(["--bboxmax", args.bboxmax])
+        command.extend(["--bboxmax", shell_quote_bbox(args.bboxmax)])
     command.extend(args.extra_arg)
 
     run_command(command)
