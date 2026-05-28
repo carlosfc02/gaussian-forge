@@ -23,4 +23,13 @@ export class SceneService {
         .pipe(map(mapSceneDtoToScene));
     }
 
+    createScene(sceneName: string, video: File): Observable<Scene> {
+        const formData = new FormData();
+
+        formData.append('scene_name', sceneName);
+        formData.append('video', video);
+
+        return this.http.post<SceneDto>('/api/scenes', formData).pipe(map(mapSceneDtoToScene))
+    }
+
 }

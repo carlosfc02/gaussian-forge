@@ -9,6 +9,18 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'new-project',
+    loadComponent: () =>
+      import('./features/new-project/new-project.component').then(
+        (module) => module.NewProjectComponent,
+      ),
+  },
+  {
+    path: '',
+    redirectTo: 'dashboard',
+    pathMatch: 'full',
+  },
+  {
     path: '**',
     redirectTo: 'dashboard',
   },

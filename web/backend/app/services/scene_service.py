@@ -24,8 +24,8 @@ def sanitaze_scene_name(scene_name: str) -> str:
         raise HTTPException(status_code=400, detail="Invalid scene name.")
     return cleaned
 
-def detect_scene_status(scene_name: str) -> SceneStatus:
-    video_exists = any(VIDEOS_DIR.glob(f"{scene_name}.*"))
+def detect_scene_status(scene_name: str, video_file: Path | None = None) -> SceneStatus:
+    video_exists = video_file is not None or any(VIDEOS_DIR.glob(f"{scene_name}.*"))
     masks_exists = (MASKS_DIR / scene_name).exists()
     gs_exists = (GS_DIR / scene_name).exists()
     sugar_exists = (SUGAR_OUTPUT_DIR / scene_name).exists()
@@ -42,18 +42,22 @@ def detect_scene_status(scene_name: str) -> SceneStatus:
     return SceneStatus.CREATED
 
 
-def get_scene(scene_name: str) -> SceneRead:
+def build_scene_read(scene_name: str, video_file: Path | None = None) -> SceneRead:
     scene_name = sanitaze_scene_name(scene_name)
-    video_file = next(VIDEOS_DIR.glob(f"{scene_name}.*"), None)
+    video_file = video_file or next(VIDEOS_DIR.glob(f"{scene_name}.*"), None)
 
     return SceneRead(
         name=scene_name,
-        status=detect_scene_status(scene_name),
+        status=detect_scene_status(scene_name, video_file),
         video_path=str(video_file) if video_file else None,
         masks_path=str(MASKS_DIR / scene_name) if (MASKS_DIR / scene_name).exists() else None,
         gs_path=str(GS_DIR / scene_name) if (GS_DIR / scene_name).exists() else None,
         sugar_output_path=str(SUGAR_OUTPUT_DIR / scene_name) if (SUGAR_OUTPUT_DIR / scene_name).exists() else None,
     )
+
+
+def get_scene(scene_name: str) -> SceneRead:
+    return build_scene_read(scene_name)
 
 def list_scenes() -> list[SceneRead]:
     scenes: list[SceneRead] = []
@@ -61,7 +65,7 @@ def list_scenes() -> list[SceneRead]:
     for video_path in sorted(VIDEOS_DIR.iterdir()):
         if video_path.is_file() and video_path.suffix in ALLOWED_VIDEO_EXTENSIONS:
             scene_name = video_path.stem
-            scenes.append(get_scene(scene_name))
+            scenes.append(build_scene_read(scene_name, video_path))
     return scenes
 
 async def create_scene_from_upload(scene_name: str, video: UploadFile) -> SceneRead:

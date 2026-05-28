@@ -1,0 +1,148 @@
+<section class="new-project-page">
+    <header class="new-project-header">
+      <div>
+        <p class="new-project-eyebrow">GaussianForge Pipeline</p>
+        <h1>New Reconstruction Project</h1>
+        <p>
+          Create a new scene by uploading a video. The next step will be selecting
+          the object bounding box for SAM 2 segmentation.
+        </p>
+      </div>
+  
+      <a routerLink="/dashboard" class="btn btn-outline-light">
+        <i class="bi bi-arrow-left"></i>
+        Back to Dashboard
+      </a>
+    </header>
+  
+    <div class="new-project-grid">
+      <form class="project-form" [formGroup]="form" (ngSubmit)="submitVideo()">
+        <div class="form-section">
+          <p class="form-section__label">Step 01</p>
+          <h2>Project identity</h2>
+  
+          <label for="sceneName" class="form-label">Scene name</label>
+  
+          <input
+            id="sceneName"
+            type="text"
+            class="form-control gf-input"
+            formControlName="sceneName"
+            placeholder="example: candle_scan_01"
+            [ngClass]="{ 'is-invalid': sceneNameInvalid }"
+          />
+  
+          @if (sceneNameInvalid) {
+            <div class="invalid-feedback d-block">
+              Use at least 3 characters. Only letters, numbers, "_" and "-".
+            </div>
+          }
+  
+          <p class="form-hint">
+            This name will be used to organize generated masks, datasets, logs and
+            reconstruction outputs.
+          </p>
+        </div>
+  
+        <div class="form-section">
+          <p class="form-section__label">Step 02</p>
+          <h2>Input video</h2>
+  
+          <label for="video" class="upload-zone">
+            <input
+              id="video"
+              type="file"
+              accept="video/mp4,video/x-matroska,video/quicktime,video/x-msvideo"
+              (change)="onFileSelected($event)"
+            />
+  
+            <div class="upload-zone__icon">
+              <i class="bi bi-cloud-arrow-up"></i>
+            </div>
+  
+            @if (selectedFile) {
+              <div>
+                <strong>{{ selectedFile.name }}</strong>
+                <span>{{ selectedFile.size / 1024 / 1024 | number: '1.1-1' }} MB</span>
+              </div>
+            } @else {
+              <div>
+                <strong>Drop or select a video</strong>
+                <span>Supported formats: mp4, mkv, mov, avi</span>
+              </div>
+            }
+          </label>
+        </div>
+  
+        @if (errorMessage) {
+          <div class="alert alert-danger gf-alert">
+            <i class="bi bi-exclamation-triangle"></i>
+            {{ errorMessage }}
+          </div>
+        }
+  
+        <div class="form-actions">
+          <button
+            type="button"
+            class="btn btn-outline-light"
+            routerLink="/dashboard"
+          >
+            Cancel
+          </button>
+  
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="isSubmitting"
+          >
+            @if (isSubmitting) {
+              <span class="spinner-border spinner-border-sm"></span>
+              Creating...
+            } @else {
+              <i class="bi bi-plus-lg"></i>
+              Create Project
+            }
+          </button>
+        </div>
+      </form>
+  
+      <aside class="pipeline-preview">
+        <p class="pipeline-preview__eyebrow">Initial workflow</p>
+        <h2>What happens next?</h2>
+  
+        <div class="pipeline-steps">
+          <div class="pipeline-step pipeline-step--active">
+            <span>01</span>
+            <div>
+              <strong>Upload video</strong>
+              <p>Store the input video in the GaussianForge data directory.</p>
+            </div>
+          </div>
+  
+          <div class="pipeline-step">
+            <span>02</span>
+            <div>
+              <strong>Select object bbox</strong>
+              <p>Choose the target object on the first video frame.</p>
+            </div>
+          </div>
+  
+          <div class="pipeline-step">
+            <span>03</span>
+            <div>
+              <strong>Run SAM 2</strong>
+              <p>Generate one binary mask per frame.</p>
+            </div>
+          </div>
+  
+          <div class="pipeline-step">
+            <span>04</span>
+            <div>
+              <strong>Prepare reconstruction dataset</strong>
+              <p>Create COLMAP and 3DGS-compatible image folders.</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
