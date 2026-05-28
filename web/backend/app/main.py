@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -5,6 +6,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import health, scenes
 from app.core.paths import ensure_base_directories
+
+
+def get_allowed_origins() -> list[str]:
+    raw_origins = os.getenv(
+        "FRONTEND_ORIGINS",
+        "http://localhost:4200,http://127.0.0.1:4200",
+    )
+    return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,10 +30,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:4200",
-        "http://127.0.0.1:4200"
-    ],
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

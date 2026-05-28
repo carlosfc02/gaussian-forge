@@ -73,7 +73,7 @@ $resolvedBaseModelDir = Resolve-DataRelativePath -RepoRoot $repoRoot -InputPath 
 
 if (-not $ViewerModelDir) {
     $plyStem = [System.IO.Path]::GetFileNameWithoutExtension($resolvedPlyPath)
-    $ViewerModelDir = Join-Path $repoRoot (Join-Path 'data' (Join-Path 'sugar-output\viewer' $plyStem))
+    $ViewerModelDir = Join-Path $repoRoot (Join-Path 'data' (Join-Path 'sugar_output\viewer' $plyStem))
 }
 elseif (-not [System.IO.Path]::IsPathRooted($ViewerModelDir)) {
     $ViewerModelDir = Join-Path $repoRoot (Join-Path 'data' $ViewerModelDir)

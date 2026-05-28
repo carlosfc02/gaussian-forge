@@ -69,7 +69,7 @@
       PYTHONUNBUFFERED: "1"
       DATA_ROOT: /data
       LOGS_ROOT: /logs
-      SUGAR_OUTPUT_ROOT: /data/sugar-output
+      SUGAR_OUTPUT_ROOT: /data/sugar_output
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics
     volumes:

@@ -1,0 +1,13 @@
+@if (scenes.length > 0) {
+  <div class="scene-list">
+    @for (scene of scenes; track scene.name) {
+      <app-scene-card [scene]="scene" />
+    }
+  </div>
+} @else {
+  <div class="scene-list-empty">
+    <i class="bi bi-folder2-open"></i>
+    <h3>No scenes yet</h3>
+    <p>Create your first reconstruction project to start the pipeline.</p>
+  </div>
+}

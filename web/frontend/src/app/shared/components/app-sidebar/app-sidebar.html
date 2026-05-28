@@ -1,0 +1,73 @@
+<aside class="gf-sidebar d-flex flex-column">
+  <header class="gf-sidebar__brand">
+    <h1 class="gf-brand-title">GaussianForge</h1>
+    <p class="gf-brand-subtitle">Precision 3D Reconstruction</p>
+  </header>
+
+  <nav class="gf-sidebar__nav nav flex-column" aria-label="Main navigation">
+    <a
+      class="gf-nav-link"
+      routerLink="/dashboard"
+      routerLinkActive="gf-nav-link--active"
+      [routerLinkActiveOptions]="{ exact: true }"
+    >
+      <i class="bi bi-grid-1x2 gf-nav-icon"></i>
+      <span>Dashboard</span>
+    </a>
+
+    <a
+      class="gf-nav-link"
+      routerLink="/new-project"
+      routerLinkActive="gf-nav-link--active"
+    >
+      <i class="bi bi-plus-square gf-nav-icon"></i>
+      <span>New Project</span>
+    </a>
+
+    <a
+      class="gf-nav-link"
+      routerLink="/history"
+      routerLinkActive="gf-nav-link--active"
+    >
+      <i class="bi bi-clock-history gf-nav-icon"></i>
+      <span>History</span>
+    </a>
+
+    <a
+      class="gf-nav-link"
+      routerLink="/settings"
+      routerLinkActive="gf-nav-link--active"
+    >
+      <i class="bi bi-gear gf-nav-icon"></i>
+      <span>Settings</span>
+    </a>
+
+    <a
+      class="gf-nav-link"
+      routerLink="/documentation"
+      routerLinkActive="gf-nav-link--active"
+    >
+      <i class="bi bi-book gf-nav-icon"></i>
+      <span>Documentation</span>
+    </a>
+  </nav>
+
+  <footer class="gf-sidebar__footer mt-auto">
+    <div class="gf-system-card">
+      <div class="gf-system-card__avatar">
+        GF
+      </div>
+
+      <div class="gf-system-card__body">
+        <p class="gf-system-card__title">Local Workstation</p>
+        <p class="gf-system-card__subtitle">GaussianForge API</p>
+      </div>
+
+      <span
+        class="gf-status-dot"
+        ngbTooltip="Backend connected"
+        placement="top"
+      ></span>
+    </div>
+  </footer>
+</aside>

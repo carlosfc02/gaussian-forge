@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import argparse
-import json
 import struct
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
 import numpy as np
 
+from pipeline_manifest import archive_stage_manifest, build_command_string, utc_now_iso, write_json
 from sam2_common import get_data_root, resolve_path_under_root
 
 
@@ -221,6 +222,8 @@ def format_vector(values: np.ndarray) -> str:
 
 
 def main() -> int:
+    started = time.time()
+    started_at = utc_now_iso()
     args = parse_args()
     if args.min_observations < 1:
         raise ValueError("min-observations must be greater than or equal to 1.")
@@ -318,11 +321,50 @@ def main() -> int:
     bboxmax = upper + padding
     center = (bboxmin + bboxmax) / 2.0
     final_extent = bboxmax - bboxmin
+    bbox_volume = float(np.prod(final_extent))
+    command = [
+        "python",
+        "scripts/estimate_sugar_bbox.py",
+        "--scene-dir",
+        args.scene_dir,
+    ]
+    if args.sparse_model is not None:
+        command.extend(["--sparse-model", str(args.sparse_model)])
+    if args.masks_dir:
+        command.extend(["--masks-dir", args.masks_dir])
+    command.extend(
+        [
+            "--min-observations",
+            str(args.min_observations),
+            "--min-foreground-ratio",
+            str(args.min_foreground_ratio),
+            "--lower-percentile",
+            str(args.lower_percentile),
+            "--upper-percentile",
+            str(args.upper_percentile),
+            "--padding-scale",
+            str(args.padding_scale),
+            "--min-padding",
+            str(args.min_padding),
+            "--erode-pixels",
+            str(args.erode_pixels),
+        ]
+    )
+    if args.output_json:
+        command.extend(["--output-json", args.output_json])
+    finished_at = utc_now_iso()
+    duration_seconds = time.time() - started
 
     output_payload = {
+        "status": "success",
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "duration_seconds": round(duration_seconds, 3),
+        "command": build_command_string(command),
         "scene_dir": str(scene_dir),
         "sparse_model_dir": str(sparse_model_dir),
         "masks_dir": str(masks_dir),
+        "output_json_path": str(output_json_path),
         "selection": {
             "min_observations": args.min_observations,
             "min_foreground_ratio": args.min_foreground_ratio,
@@ -344,16 +386,15 @@ def main() -> int:
         "bboxmax": bboxmax.tolist(),
         "center": center.tolist(),
         "extent": final_extent.tolist(),
+        "bbox_volume": bbox_volume,
         "sugar_args": {
             "bboxmin": format_vector(bboxmin),
             "bboxmax": format_vector(bboxmax),
         },
     }
 
-    output_json_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_json_path.open("w", encoding="utf-8") as handle:
-        json.dump(output_payload, handle, indent=2)
-        handle.write("\n")
+    write_json(output_json_path, output_payload)
+    metrics_manifest_path = archive_stage_manifest(scene_dir, "bbox_estimate", output_payload)
 
     print(f"Sparse model: {sparse_model_dir}")
     print(f"Masks directory: {masks_dir}")
@@ -365,6 +406,7 @@ def main() -> int:
     print(f"bboxmin: {format_vector(bboxmin)}")
     print(f"bboxmax: {format_vector(bboxmax)}")
     print(f"Saved estimate JSON: {output_json_path}")
+    print(f"Saved metrics manifest: {metrics_manifest_path}")
     print("Suggested SuGaR command:")
     print(
         f"python scripts/train_sugar.py --scene-dir {args.scene_dir} "

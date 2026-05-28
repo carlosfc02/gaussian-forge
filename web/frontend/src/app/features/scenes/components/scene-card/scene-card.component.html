@@ -1,0 +1,40 @@
+<article class="scene-card">
+  <div class="scene-card__header">
+    <div>
+      <h3>{{ scene.name }}</h3>
+      <p>Object reconstruction scene</p>
+    </div>
+
+    <span class="scene-card__status">
+      {{ scene.status }}
+    </span>
+  </div>
+
+  <div class="scene-card__meta">
+    <p>
+      <i class="bi bi-camera-video"></i>
+      {{ scene.videoPath ? 'Video uploaded' : 'No video' }}
+    </p>
+
+    <p>
+      <i class="bi bi-layers"></i>
+      {{ scene.maskPaths ? 'Masks available' : 'No masks' }}
+    </p>
+
+    <p>
+      <i class="bi bi-box"></i>
+      {{ scene.gsPath ? '3DGS dataset available' : 'No 3DGS dataset' }}
+    </p>
+
+    <p>
+      <i class="bi bi-box"></i>
+      {{ scene.sugarOutputPath ? 'SuGar Output available' : 'No SuGar output' }}
+    </p>
+  </div>
+
+  <div class="scene-card__actions">
+    <a class="btn btn-sm btn-outline-light" [routerLink]="['/scenes', scene.name]">
+      Open
+    </a>
+  </div>
+</article>

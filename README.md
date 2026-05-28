@@ -9,6 +9,7 @@ GaussianForge is a reproducible pipeline for object-centric 3D reconstruction fr
 - `gaussian-splatting`: Container for official 3DGS training on the COLMAP output.
 - `sugar`: Container for official SuGaR mesh-oriented training on top of the prepared COLMAP dataset and, by default, the vanilla 3DGS checkpoint.
 - `tools/3dgs-viewer`: Local Windows viewer binaries for real-time inspection of trained 3DGS scenes.
+- `web/backend`: FastAPI backend scaffold for the future web interface, currently focused on scene creation and scene status inspection.
 
 ## Directory layout
 
@@ -17,6 +18,7 @@ GaussianForge is a reproducible pipeline for object-centric 3D reconstruction fr
 - `docker/gaussian-splatting/`: Docker image definition for official 3DGS training.
 - `docker/sugar/`: Docker image definition for official SuGaR training.
 - `scripts/`: host-side orchestration and preprocessing scripts.
+- `web/backend/`: FastAPI backend for the web layer.
 - `jobs/segmentation/`: JSON job definitions.
 - `data/videos/`: input videos.
 - `data/masks/`: output binary masks.
@@ -29,6 +31,78 @@ GaussianForge is a reproducible pipeline for object-centric 3D reconstruction fr
 ```bash
 docker compose build sam2-seg colmap gaussian-splatting sugar
 ```
+
+## Run the web backend
+
+The repository now includes an initial FastAPI backend under `web/backend`.
+It is the first implemented piece of the web layer and currently provides:
+
+- API health/status endpoints
+- scene listing from repository data
+- scene creation by uploading a video
+- filesystem-based scene status detection
+
+Install dependencies and run it locally with:
+
+```bash
+cd web/backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Open:
+
+- `http://127.0.0.1:8000/docs` for Swagger UI
+- `http://127.0.0.1:8000/api/health` for a simple health check
+
+Current API routes:
+
+- `GET /`
+- `GET /api/health`
+- `GET /api/scenes`
+- `GET /api/scenes/{scene_name}`
+- `POST /api/scenes`
+
+The backend currently accepts CORS requests from:
+
+- `http://localhost:4200`
+- `http://127.0.0.1:4200`
+
+This is intended for a future frontend running on port `4200`.
+
+### Create a scene from the API
+
+Send a multipart request with:
+
+- `scene_name`: logical scene identifier
+- `video`: uploaded video file
+
+Example:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/scenes \
+  -F "scene_name=wood_star" \
+  -F "video=@data/videos/wood_star.mp4"
+```
+
+Behavior:
+
+- scene names are sanitized to alphanumeric characters, `_`, and `-`
+- uploaded videos are stored under `data/videos/<scene_name>.<ext>`
+- a per-scene log directory is created under `logs/<scene_name>`
+- the returned scene status is inferred from the current repository artifacts
+
+Current detected scene states include:
+
+- `CREATED`
+- `VIDEO_UPLOADED`
+- `MASKS_READY`
+- `DATASET_READY`
+- `SUGAR_READY`
+
+If you launch the backend from outside the repository root, set `GAUSSIANFORGE_ROOT` so the API can resolve `data/`, `jobs/`, `logs/`, and `scripts/` correctly.
 
 ## Download a checkpoint
 
@@ -210,16 +284,16 @@ Default behavior:
 
 - uses the official `train_full_pipeline.py` from SuGaR
 - reuses `data/3dgs/<scene>/gs/model` if it contains `iteration_7000`
-- writes official SuGaR `output/` folders under `data/sugar-output/`
+- writes official SuGaR `output/` folders under `data/sugar_output/<scene>/`
 - uses `dn_consistency` regularization by default
 
 Main outputs:
 
-- `data/sugar-output/coarse/<scene>`
-- `data/sugar-output/coarse_mesh/<scene>`
-- `data/sugar-output/refined/<scene>`
-- `data/sugar-output/refined_mesh/<scene>`
-- `data/sugar-output/refined_ply/<scene>`
+- `data/sugar_output/<scene>/coarse/source`
+- `data/sugar_output/<scene>/coarse_mesh/source`
+- `data/sugar_output/<scene>/refined/source`
+- `data/sugar_output/<scene>/refined_mesh/source`
+- `data/sugar_output/<scene>/refined_ply/source`
 
 Useful options:
 
@@ -228,6 +302,7 @@ python scripts/train_sugar.py --scene-dir 3dgs/wood_star --high-poly --refinemen
 python scripts/train_sugar.py --scene-dir 3dgs/wood_star --regularization density
 python scripts/train_sugar.py --scene-dir 3dgs/wood_star --from-scratch
 python scripts/train_sugar.py --scene-dir 3dgs/wood_star --bboxmin "(0.0,0.0,0.0)" --bboxmax "(1.0,1.0,1.0)"
+python scripts/train_sugar.py --scene-dir 3dgs/wood_star --sugar-output-name wood_star_iter7000
 ```
 
 Notes:
@@ -279,20 +354,20 @@ Notes:
 Use the SuGaR-specific wrapper launcher when you want to inspect a refined `.ply` through the same SIBR viewer:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\open_sugar_viewer.ps1 -PlyPath sugar-output\refined_ply\source\your_model.ply -SourceDir 3dgs\wood_star\gs\source
+powershell -ExecutionPolicy Bypass -File .\scripts\open_sugar_viewer.ps1 -PlyPath sugar_output\wood_star\refined_ply\source\your_model.ply -SourceDir 3dgs\wood_star\gs\source
 ```
 
 Useful options:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\open_sugar_viewer.ps1 -PlyPath sugar-output\refined_ply\source\your_model.ply -SourceDir 3dgs\wood_star\gs\source -LoadImages
+powershell -ExecutionPolicy Bypass -File .\scripts\open_sugar_viewer.ps1 -PlyPath sugar_output\wood_star\refined_ply\source\your_model.ply -SourceDir 3dgs\wood_star\gs\source -LoadImages
 ```
 
 Notes:
 
 - `-PlyPath` is resolved relative to `data/` unless you pass an absolute path.
 - `-SourceDir` should point to the matching `gs/source` dataset.
-- The script creates a temporary viewer-compatible wrapper under `data/sugar-output/viewer/`.
+- The script creates a temporary viewer-compatible wrapper under `data/sugar_output/viewer/`.
 
 ## Job contract
 

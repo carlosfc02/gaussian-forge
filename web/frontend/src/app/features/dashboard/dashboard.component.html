@@ -1,0 +1,29 @@
+<section class="dashboard-page">
+  <header class="dashboard-header">
+    <div>
+      <h1>Reconstruction Dashboard</h1>
+      <p class="dashboard-description">
+        Manage reconstruction scenes and monitor the current pipeline status.
+      </p>
+    </div>
+
+    <a routerLink="/new-project" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i>
+      New Project
+    </a>
+  </header>
+
+  @if (scenes$ | async; as scenes) {
+
+    <section class="dashboard-section">
+      <div class="dashboard-section__header">
+        <h2>Scenes</h2>
+        <p>{{ scenes.length }} reconstruction scenes found</p>
+      </div>
+
+      <app-scenes-list [scenes]="scenes" />
+    </section>
+  } @else {
+    <p class="dashboard-loading">Loading scenes...</p>
+  }
+</section>

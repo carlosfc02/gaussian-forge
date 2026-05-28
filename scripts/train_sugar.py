@@ -6,8 +6,10 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
+from pipeline_manifest import archive_stage_manifest, build_command_string, utc_now_iso
 from sam2_common import get_data_root, resolve_path_under_root
 
 
@@ -32,8 +34,19 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--sugar-output-root",
-        default="sugar-output",
-        help="Output root relative to data/ where SuGaR writes output/. Defaults to sugar-output.",
+        default="sugar_output",
+        help=(
+            "Global SuGaR output root relative to data/. "
+            "The launcher creates <root>/<scene>/ and lets SuGaR write its official output/ "
+            "layout there. Defaults to sugar_output."
+        ),
+    )
+    parser.add_argument(
+        "--sugar-output-name",
+        help=(
+            "Optional output folder name created under sugar-output-root. "
+            "Defaults to the input scene name."
+        ),
     )
     parser.add_argument(
         "--from-scratch",
@@ -171,6 +184,36 @@ def run_command(command: list[str]) -> None:
     subprocess.run(command, check=True)
 
 
+def summarize_directory(path: Path) -> dict[str, int | bool]:
+    if not path.exists():
+        return {
+            "exists": False,
+            "file_count": 0,
+            "total_size_bytes": 0,
+        }
+
+    file_count = 0
+    total_size = 0
+    for item in path.rglob("*"):
+        if not item.is_file():
+            continue
+        file_count += 1
+        total_size += item.stat().st_size
+
+    return {
+        "exists": True,
+        "file_count": file_count,
+        "total_size_bytes": total_size,
+    }
+
+
+def find_first_file_with_suffix(path: Path, suffix: str) -> Path | None:
+    if not path.exists():
+        return None
+    matches = sorted(candidate for candidate in path.rglob(f"*{suffix}") if candidate.is_file())
+    return matches[0] if matches else None
+
+
 def validate_3dgs_checkpoint(model_dir: Path) -> None:
     iteration_7000 = model_dir / "point_cloud" / "iteration_7000" / "point_cloud.ply"
     if not model_dir.exists():
@@ -232,9 +275,13 @@ def prepare_sugar_checkpoint_dir(model_dir: Path, scene_dir: Path) -> Path:
 
 
 def main() -> int:
+    started = time.time()
+    started_at = utc_now_iso()
     args = parse_args()
     data_root = get_data_root()
     scene_dir = resolve_path_under_root(data_root, args.scene_dir, "scene-dir")
+    scene_name = scene_dir.name
+    sugar_output_name = args.sugar_output_name or scene_name
     source_dir = scene_dir / "gs" / "source"
 
     if not source_dir.exists():
@@ -256,10 +303,11 @@ def main() -> int:
         sugar_gs_model_dir = prepare_sugar_checkpoint_dir(gs_model_dir, scene_dir)
 
     sugar_output_root = resolve_path_under_root(data_root, args.sugar_output_root, "sugar-output-root")
-    sugar_output_root.mkdir(parents=True, exist_ok=True)
+    sugar_scene_output_dir = sugar_output_root / sugar_output_name
+    sugar_scene_output_dir.mkdir(parents=True, exist_ok=True)
 
     source_dir_in_container = f"/data/{source_dir.relative_to(data_root).as_posix()}"
-    sugar_output_root_in_container = f"/data/{sugar_output_root.relative_to(data_root).as_posix()}"
+    sugar_output_root_in_container = f"/data/{sugar_scene_output_dir.relative_to(data_root).as_posix()}"
 
     command = [
         "docker",
@@ -326,12 +374,83 @@ def main() -> int:
     command.extend(args.extra_arg)
 
     run_command(command)
+    coarse_dir = sugar_scene_output_dir / "coarse" / "source"
+    coarse_mesh_dir = sugar_scene_output_dir / "coarse_mesh" / "source"
+    refined_dir = sugar_scene_output_dir / "refined" / "source"
+    refined_mesh_dir = sugar_scene_output_dir / "refined_mesh" / "source"
+    refined_ply_dir = sugar_scene_output_dir / "refined_ply" / "source"
+    refined_obj = find_first_file_with_suffix(refined_mesh_dir, ".obj")
+    refined_ply = find_first_file_with_suffix(refined_ply_dir, ".ply")
+    finished_at = utc_now_iso()
+    duration_seconds = time.time() - started
+    manifest = {
+        "status": "success",
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "duration_seconds": round(duration_seconds, 3),
+        "command": build_command_string(command),
+        "scene_dir": str(scene_dir),
+        "input_paths": {
+            "source_dir": str(source_dir),
+            "gs_model_dir": str(gs_model_dir) if gs_model_dir else None,
+            "sugar_compat_dir": str(sugar_gs_model_dir) if sugar_gs_model_dir else None,
+        },
+        "output_paths": {
+            "sugar_output_root": str(sugar_output_root),
+            "sugar_scene_output_dir": str(sugar_scene_output_dir),
+            "coarse_dir": str(coarse_dir),
+            "coarse_mesh_dir": str(coarse_mesh_dir),
+            "refined_dir": str(refined_dir),
+            "refined_mesh_dir": str(refined_mesh_dir),
+            "refined_ply_dir": str(refined_ply_dir),
+        },
+        "parameters": {
+            "regularization": args.regularization,
+            "from_scratch": args.from_scratch,
+            "sugar_output_name": sugar_output_name,
+            "low_poly": args.low_poly,
+            "high_poly": args.high_poly,
+            "refinement_time": args.refinement_time,
+            "surface_level": args.surface_level,
+            "n_vertices": args.n_vertices,
+            "gaussians_per_triangle": args.gaussians_per_triangle,
+            "refinement_iterations": args.refinement_iterations,
+            "square_size": args.square_size,
+            "gpu": args.gpu,
+            "bboxmin": args.bboxmin,
+            "bboxmax": args.bboxmax,
+            "center_bbox": args.center_bbox,
+            "eval": args.eval,
+            "white_background": args.white_background,
+            "export_obj": args.export_obj,
+            "export_ply": args.export_ply,
+            "postprocess_mesh": args.postprocess_mesh,
+            "postprocess_density_threshold": args.postprocess_density_threshold,
+            "postprocess_iterations": args.postprocess_iterations,
+            "extra_arg": args.extra_arg,
+        },
+        "artifacts": {
+            "coarse_dir": summarize_directory(coarse_dir),
+            "coarse_mesh_dir": summarize_directory(coarse_mesh_dir),
+            "refined_dir": summarize_directory(refined_dir),
+            "refined_mesh_dir": summarize_directory(refined_mesh_dir),
+            "refined_ply_dir": summarize_directory(refined_ply_dir),
+            "refined_obj_path": str(refined_obj) if refined_obj else None,
+            "refined_obj_size_bytes": refined_obj.stat().st_size if refined_obj and refined_obj.exists() else None,
+            "refined_ply_path": str(refined_ply) if refined_ply else None,
+            "refined_ply_size_bytes": refined_ply.stat().st_size if refined_ply and refined_ply.exists() else None,
+        },
+    }
+    metrics_manifest_path = archive_stage_manifest(scene_dir, "train_sugar", manifest)
+
     print(f"SuGaR output root: {sugar_output_root}")
-    print(f"Coarse outputs: {sugar_output_root / 'coarse' / scene_dir.name}")
-    print(f"Coarse meshes: {sugar_output_root / 'coarse_mesh' / scene_dir.name}")
-    print(f"Refined outputs: {sugar_output_root / 'refined' / scene_dir.name}")
-    print(f"Refined meshes: {sugar_output_root / 'refined_mesh' / scene_dir.name}")
-    print(f"Refined PLY: {sugar_output_root / 'refined_ply' / scene_dir.name}")
+    print(f"SuGaR scene output: {sugar_scene_output_dir}")
+    print(f"Coarse outputs: {sugar_scene_output_dir / 'coarse' / 'source'}")
+    print(f"Coarse meshes: {sugar_scene_output_dir / 'coarse_mesh' / 'source'}")
+    print(f"Refined outputs: {sugar_scene_output_dir / 'refined' / 'source'}")
+    print(f"Refined meshes: {sugar_scene_output_dir / 'refined_mesh' / 'source'}")
+    print(f"Refined PLY: {sugar_scene_output_dir / 'refined_ply' / 'source'}")
+    print(f"Saved metrics manifest: {metrics_manifest_path}")
     return 0
 
 

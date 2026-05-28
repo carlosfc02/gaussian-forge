@@ -1,0 +1,39 @@
+@use "bootstrap/scss/bootstrap";
+@import "bootstrap-icons/font/bootstrap-icons.css";
+
+html,
+body {
+  min-height: 100%;
+  background: #0d0f13;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  color: #eef4f7;
+}
+
+:root {
+  color-scheme: dark;
+  --gf-bg: #0d0f13;
+  --gf-surface: #171b21;
+  --gf-surface-strong: #1e232b;
+  --gf-surface-soft: #222832;
+  --gf-border: rgba(184, 204, 214, 0.16);
+  --gf-border-strong: rgba(35, 223, 255, 0.45);
+  --gf-text: #edf5f8;
+  --gf-text-muted: #94a8b3;
+  --gf-accent: #11d8f6;
+  --gf-accent-soft: rgba(17, 216, 246, 0.16);
+  --gf-success: #4ef089;
+  --gf-warning: #ffcb45;
+  --gf-danger: #ff8d82;
+  --gf-mono: 'Consolas', 'Courier New', monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+

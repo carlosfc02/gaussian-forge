@@ -1,0 +1,13 @@
+.gf-app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  background: var(--gf-bg);
+}
+
+.gf-app-main {
+  min-width: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--gf-bg);
+}
