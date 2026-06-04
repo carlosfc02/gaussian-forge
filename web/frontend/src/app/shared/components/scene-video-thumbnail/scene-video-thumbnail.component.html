@@ -1,0 +1,22 @@
+<div
+  class="scene-thumbnail"
+  [class.scene-thumbnail--compact]="compact()"
+  [class.scene-thumbnail--loading]="isLoading()"
+>
+  @if (thumbnailUrl(); as currentThumbnailUrl) {
+    <img
+      [src]="currentThumbnailUrl"
+      [alt]="'Preview for ' + sceneName()"
+      [class.scene-thumbnail__image--hidden]="!imageReady()"
+      (load)="onLoad()"
+      (error)="onError()"
+    />
+  }
+
+  @if (!thumbnailUrl() || !imageReady()) {
+    <div class="scene-thumbnail__placeholder">
+      <i class="bi" [class.bi-hourglass-split]="isLoading()" [class.bi-image]="hasError()" [class.bi-film]="!isLoading() && !hasError()"></i>
+      <span>{{ hasError() ? 'No preview' : 'Preparing preview' }}</span>
+    </div>
+  }
+</div>

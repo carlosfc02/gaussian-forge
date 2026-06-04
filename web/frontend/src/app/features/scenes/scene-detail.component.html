@@ -1,0 +1,90 @@
+<section class="scene-detail-page">
+  <a class="scene-detail-back" routerLink="/dashboard">
+    <i class="bi bi-arrow-left"></i>
+    Back to dashboard
+  </a>
+
+  @if (scene(); as sceneData) {
+    <header class="scene-detail-header">
+      <div>
+        <p class="scene-detail-eyebrow">Project detail</p>
+        <h1>{{ sceneData.name }}</h1>
+        <p class="scene-detail-description">{{ sceneMeta()?.description }}</p>
+      </div>
+
+      <app-scene-status-badge [status]="sceneData.status" />
+    </header>
+
+    <section class="scene-detail-grid">
+      <article class="scene-detail-card scene-detail-card--media">
+        <div class="scene-detail-card__header">
+          <h2>Source preview</h2>
+          @if (sceneData.videoUrl) {
+            <a class="btn btn-sm btn-outline-light" [href]="sceneData.videoUrl" target="_blank" rel="noreferrer">
+              Open video
+            </a>
+          }
+        </div>
+
+        <app-scene-video-thumbnail [sceneName]="sceneData.name" [thumbnailUrl]="sceneData.thumbnailUrl" />
+      </article>
+
+      <article class="scene-detail-card scene-detail-card--progress">
+        <div class="scene-detail-card__header">
+          <h2>Pipeline status</h2>
+          <span class="scene-detail-card__meta">live refresh every 5s</span>
+        </div>
+
+        <strong class="scene-detail-progress">{{ sceneMeta()?.progress }}%</strong>
+        <p class="scene-detail-stage">{{ sceneMeta()?.stage }}</p>
+
+        <ngb-progressbar
+          [value]="sceneMeta()?.progress ?? 0"
+          [max]="100"
+          [showValue]="false"
+          height="0.6rem"
+          type="info"
+        />
+      </article>
+
+      <article class="scene-detail-card">
+        <div class="scene-detail-card__header">
+          <h2>Generated assets</h2>
+          <span class="scene-detail-card__meta">{{ assetSummary() }}/4</span>
+        </div>
+
+        <ul class="scene-detail-assets">
+          <li [class.scene-detail-assets__item--ready]="!!sceneData.videoPath">
+            <span>Input video</span>
+            <strong>{{ sceneData.videoPath ? 'Ready' : 'Missing' }}</strong>
+          </li>
+          <li [class.scene-detail-assets__item--ready]="!!sceneData.maskPaths">
+            <span>Masks</span>
+            <strong>{{ sceneData.maskPaths ? 'Ready' : 'Pending' }}</strong>
+          </li>
+          <li [class.scene-detail-assets__item--ready]="!!sceneData.gsPath">
+            <span>3DGS dataset</span>
+            <strong>{{ sceneData.gsPath ? 'Ready' : 'Pending' }}</strong>
+          </li>
+          <li [class.scene-detail-assets__item--ready]="!!sceneData.sugarOutputPath">
+            <span>SuGaR output</span>
+            <strong>{{ sceneData.sugarOutputPath ? 'Ready' : 'Pending' }}</strong>
+          </li>
+        </ul>
+      </article>
+    </section>
+  } @else if (isLoading()) {
+    <div class="scene-detail-loading">
+      <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+      Loading project progress...
+    </div>
+  } @else {
+    <div class="scene-detail-error">
+      <i class="bi bi-exclamation-octagon"></i>
+      <div>
+        <h2>Scene unavailable</h2>
+        <p>{{ errorMessage() ?? 'The scene could not be loaded from the API.' }}</p>
+      </div>
+    </div>
+  }
+</section>

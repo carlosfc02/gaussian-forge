@@ -21,6 +21,7 @@ GaussianForge is a reproducible pipeline for object-centric 3D reconstruction fr
 - `web/backend/`: FastAPI backend for the web layer.
 - `jobs/segmentation/`: JSON job definitions.
 - `data/videos/`: input videos.
+- `data/frames_videos/`: persisted dashboard thumbnails extracted from uploaded videos.
 - `data/masks/`: output binary masks.
 - `data/3dgs/`: prepared datasets and reconstruction outputs for `COLMAP -> 3DGS`.
 - `models/sam2/`: external checkpoints volume.
@@ -52,6 +53,9 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+The backend now also expects `ffmpeg` to be available on the host `PATH` so it can
+generate scene thumbnails under `data/frames_videos/`.
+
 Open:
 
 - `http://127.0.0.1:8000/docs` for Swagger UI
@@ -63,6 +67,8 @@ Current API routes:
 - `GET /api/health`
 - `GET /api/scenes`
 - `GET /api/scenes/{scene_name}`
+- `GET /api/scenes/{scene_name}/thumbnail`
+- `GET /api/scenes/{scene_name}/video`
 - `POST /api/scenes`
 
 The backend currently accepts CORS requests from:
@@ -91,6 +97,7 @@ Behavior:
 
 - scene names are sanitized to alphanumeric characters, `_`, and `-`
 - uploaded videos are stored under `data/videos/<scene_name>.<ext>`
+- a dashboard thumbnail is generated under `data/frames_videos/<scene_name>.jpg` when possible
 - a per-scene log directory is created under `logs/<scene_name>`
 - the returned scene status is inferred from the current repository artifacts
 

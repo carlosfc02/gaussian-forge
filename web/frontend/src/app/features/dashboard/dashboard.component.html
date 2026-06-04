@@ -1,29 +1,130 @@
 <section class="dashboard-page">
   <header class="dashboard-header">
-    <div>
-      <h1>Reconstruction Dashboard</h1>
+    <div class="dashboard-header__copy">
+      <p class="dashboard-eyebrow">Compute Dashboard</p>
+      <h1>Project orchestration for the reconstruction pipeline</h1>
       <p class="dashboard-description">
-        Manage reconstruction scenes and monitor the current pipeline status.
+        Track every scene from video upload to mesh-ready output, with a reusable project list
+        built around live API status.
       </p>
     </div>
 
-    <a routerLink="/new-project" class="btn btn-primary">
-      <i class="bi bi-plus-lg"></i>
-      New Project
-    </a>
+    <div class="dashboard-header__actions">
+      <button class="btn btn-outline-light" type="button" (click)="refreshScenes()">
+        <i class="bi bi-arrow-clockwise"></i>
+        Refresh
+      </button>
+
+      <a routerLink="/new-project" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i>
+        Start New Reconstruction
+      </a>
+    </div>
   </header>
 
-  @if (scenes$ | async; as scenes) {
+  <section class="dashboard-toolbar">
+    <label class="dashboard-search" for="dashboard-project-search">
+      <i class="bi bi-search"></i>
+      <input
+        id="dashboard-project-search"
+        type="search"
+        placeholder="Search projects, stages or statuses..."
+        [(ngModel)]="searchTerm"
+      />
+    </label>
 
-    <section class="dashboard-section">
-      <div class="dashboard-section__header">
-        <h2>Scenes</h2>
-        <p>{{ scenes.length }} reconstruction scenes found</p>
+    <p class="dashboard-toolbar__meta">
+      Auto-refreshing every 8 seconds
+      @if (isLoading()) {
+        <span class="dashboard-toolbar__pulse">syncing</span>
+      }
+    </p>
+  </section>
+
+  <section class="dashboard-overview">
+    <article class="dashboard-metric">
+      <p class="dashboard-metric__label">Projects</p>
+      <strong>{{ totals().totalProjects }}</strong>
+      <span>{{ totals().activeProjects }} currently in progress</span>
+    </article>
+
+    <article class="dashboard-metric">
+      <p class="dashboard-metric__label">Fleet health</p>
+      <strong>{{ totals().healthyProjects }}/{{ totals().totalProjects }}</strong>
+      <span>Projects without reported errors</span>
+    </article>
+
+    <article class="dashboard-active">
+      <div class="dashboard-active__header">
+        <div>
+          <p class="dashboard-metric__label">Active project</p>
+
+          @if (activeScene(); as scene) {
+            <h2>{{ scene.name }}</h2>
+          } @else {
+            <h2>No active pipeline right now</h2>
+          }
+        </div>
+
+        @if (activeScene(); as scene) {
+          <app-scene-status-badge [status]="scene.status" />
+        }
       </div>
 
-      <app-scenes-list [scenes]="scenes" />
-    </section>
-  } @else {
-    <p class="dashboard-loading">Loading scenes...</p>
-  }
+      @if (activeScene(); as scene) {
+        <p class="dashboard-active__stage">{{ getSceneStage(scene) }}</p>
+
+        <div class="dashboard-active__progress">
+          <div>
+            <strong>{{ getSceneProgress(scene) }}%</strong>
+            <span>Estimated completion</span>
+          </div>
+
+          <ngb-progressbar
+            [value]="getSceneProgress(scene)"
+            [max]="100"
+            [showValue]="false"
+            height="0.5rem"
+            type="info"
+          />
+        </div>
+
+        <a class="btn btn-outline-light" [routerLink]="['/scenes', scene.name]">
+          Continue progress
+        </a>
+      } @else {
+        <p class="dashboard-active__empty">
+          As soon as a project is created, its live status will show up here.
+        </p>
+      }
+    </article>
+
+    <article class="dashboard-metric">
+      <p class="dashboard-metric__label">Completion</p>
+      <strong>{{ totals().averageCompletion }}%</strong>
+      <span>{{ totals().completedProjects }} projects ready or completed</span>
+    </article>
+  </section>
+
+  <section class="dashboard-section">
+    <div class="dashboard-section__header">
+      <div>
+        <h2>Projects registry</h2>
+        <p>{{ filteredScenes().length }} scenes visible in the current filter</p>
+      </div>
+    </div>
+
+    @if (errorMessage()) {
+      <div class="dashboard-alert">
+        <i class="bi bi-exclamation-triangle"></i>
+        <span>{{ errorMessage() }}</span>
+      </div>
+    }
+
+    <app-scenes-list
+      [scenes]="filteredScenes()"
+      [emptyTitle]="emptyTitle()"
+      [emptyDescription]="emptyDescription()"
+    />
+  </section>
 </section>

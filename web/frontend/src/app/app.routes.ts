@@ -16,6 +16,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'scenes/:sceneName',
+    loadComponent: () =>
+      import('./features/scenes/scene-detail.component').then(
+        (module) => module.SceneDetailComponent,
+      ),
+  },
+  {
     path: '',
     redirectTo: 'dashboard',
     pathMatch: 'full',

@@ -1,13 +1,95 @@
 @if (scenes.length > 0) {
   <div class="scene-list">
+    <div class="scene-list__header">
+      <span>Project</span>
+      <span>Status</span>
+      <span>Stage</span>
+      <span>Assets</span>
+      <!-- <span>Progress</span> -->
+      <span class="scene-list__header-actions">Actions</span>
+    </div>
+
     @for (scene of scenes; track scene.name) {
-      <app-scene-card [scene]="scene" />
+      <article class="scene-row">
+        <a class="scene-row__project" [routerLink]="['/scenes', scene.name]">
+          <app-scene-video-thumbnail
+            [sceneName]="scene.name"
+            [thumbnailUrl]="scene.thumbnailUrl"
+            [compact]="true"
+          />
+
+          <div class="scene-row__project-copy">
+            <h3>{{ scene.name }}</h3>
+            <p>{{ getDescription(scene) }}</p>
+          </div>
+        </a>
+
+        <div class="scene-row__cell">
+          <app-scene-status-badge [status]="scene.status" />
+        </div>
+
+        <div class="scene-row__cell scene-row__cell--stage">
+          <strong>{{ getStage(scene) }}</strong>
+          <span>{{ getStatusLabel(scene) }}</span>
+        </div>
+
+        <div class="scene-row__cell scene-row__cell--assets">
+          <strong>{{ getAssetCount(scene) }}/4</strong>
+          <span>video, masks, 3DGS, SuGaR</span>
+        </div>
+        
+        <!--
+        <div class="scene-row__cell scene-row__cell--progress">
+          <div class="scene-row__progress-copy">
+            <strong>{{ getProgress(scene) }}%</strong>
+            <span>Pipeline completion</span>
+          </div>
+
+          <ngb-progressbar
+            [value]="getProgress(scene)"
+            [max]="100"
+            [showValue]="false"
+            height="0.4rem"
+            type="info"
+          />
+        </div>
+        -->
+
+        <div class="scene-row__cell scene-row__cell--actions">
+          <a class="btn btn-sm btn-outline-light" [routerLink]="['/scenes', scene.name]">
+            Open
+          </a>
+
+          <div ngbDropdown class="scene-actions">
+            <button
+              class="btn btn-sm btn-outline-secondary"
+              type="button"
+              ngbDropdownToggle
+              aria-label="Open project actions"
+            >
+              <i class="bi bi-three-dots"></i>
+            </button>
+
+            <div ngbDropdownMenu class="scene-actions__menu">
+              <a ngbDropdownItem [routerLink]="['/scenes', scene.name]">
+                Continue progress
+              </a>
+
+              @if (scene.videoUrl) {
+                <a ngbDropdownItem [href]="scene.videoUrl" target="_blank" rel="noreferrer">
+                  Open source video
+                </a>
+              }
+            </div>
+          </div>
+        </div>
+      </article>
     }
   </div>
 } @else {
   <div class="scene-list-empty">
     <i class="bi bi-folder2-open"></i>
-    <h3>No scenes yet</h3>
-    <p>Create your first reconstruction project to start the pipeline.</p>
+    <h3>{{ emptyTitle }}</h3>
+    <p>{{ emptyDescription }}</p>
   </div>
 }

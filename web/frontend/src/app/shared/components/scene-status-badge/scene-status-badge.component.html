@@ -1,0 +1,11 @@
+<span
+  class="scene-status-badge"
+  [class.scene-status-badge--neutral]="meta().tone === 'neutral'"
+  [class.scene-status-badge--info]="meta().tone === 'info'"
+  [class.scene-status-badge--success]="meta().tone === 'success'"
+  [class.scene-status-badge--warning]="meta().tone === 'warning'"
+  [class.scene-status-badge--danger]="meta().tone === 'danger'"
+>
+  <i [class]="'bi ' + meta().icon"></i>
+  <span>{{ meta().label }}</span>
+</span>

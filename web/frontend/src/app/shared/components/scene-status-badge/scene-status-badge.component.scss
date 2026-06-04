@@ -1,0 +1,55 @@
+:host {
+  display: inline-flex;
+}
+
+.scene-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  min-height: 2rem;
+  padding: 0.35rem 0.7rem;
+
+  border: 1px solid transparent;
+  border-radius: 999px;
+
+  font-family: var(--gf-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.scene-status-badge i {
+  font-size: 0.85rem;
+}
+
+.scene-status-badge--neutral {
+  background: rgba(148, 168, 179, 0.12);
+  border-color: rgba(148, 168, 179, 0.22);
+  color: #c6d0d6;
+}
+
+.scene-status-badge--info {
+  background: rgba(17, 216, 246, 0.12);
+  border-color: rgba(17, 216, 246, 0.22);
+  color: #9bf4ff;
+}
+
+.scene-status-badge--success {
+  background: rgba(78, 240, 137, 0.12);
+  border-color: rgba(78, 240, 137, 0.22);
+  color: #9bf9bc;
+}
+
+.scene-status-badge--warning {
+  background: rgba(255, 203, 69, 0.12);
+  border-color: rgba(255, 203, 69, 0.22);
+  color: #ffe08a;
+}
+
+.scene-status-badge--danger {
+  background: rgba(255, 141, 130, 0.12);
+  border-color: rgba(255, 141, 130, 0.22);
+  color: #ffb8b1;
+}
