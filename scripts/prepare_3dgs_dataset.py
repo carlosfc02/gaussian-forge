@@ -41,6 +41,15 @@ def parse_args() -> argparse.Namespace:
         default="black",
         help="Background color for the masked images used by 3DGS. Defaults to black.",
     )
+    parser.add_argument(
+        "--gs-image-mode",
+        choices=("masked", "original"),
+        default="masked",
+        help=(
+            "Images written to gs/images. Use 'original' for masked RGB loss training; "
+            "'masked' preserves the legacy black/white background behavior. Defaults to masked."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -113,10 +122,12 @@ def main() -> int:
     colmap_images_dir = output_dir / "colmap" / "images"
     colmap_masks_dir = output_dir / "colmap" / "masks"
     gs_images_dir = output_dir / "gs" / "images"
+    gs_masks_dir = output_dir / "gs" / "masks"
 
     reset_output_dir(colmap_images_dir)
     reset_output_dir(colmap_masks_dir)
     reset_output_dir(gs_images_dir)
+    reset_output_dir(gs_masks_dir)
 
     selected_masks = list_mask_frames(mask_dir)[:: args.frame_step]
     selected_by_frame = {frame_idx: mask_path for frame_idx, mask_path in selected_masks}
@@ -153,13 +164,18 @@ def main() -> int:
                 )
 
             mask_binary = (mask > 0).astype(np.uint8)
-            masked_frame = make_background(frame, mask_binary, args.background)
+            gs_frame = (
+                frame
+                if args.gs_image_mode == "original"
+                else make_background(frame, mask_binary, args.background)
+            )
 
             image_file_name = f"{current_frame_idx:06d}.png"
-            mask_file_name = f"{image_file_name}.png"
+            colmap_mask_file_name = f"{image_file_name}.png"
             save_image(colmap_images_dir / image_file_name, frame)
-            save_image(colmap_masks_dir / mask_file_name, mask_binary * 255)
-            save_image(gs_images_dir / image_file_name, masked_frame)
+            save_image(colmap_masks_dir / colmap_mask_file_name, mask_binary * 255)
+            save_image(gs_images_dir / image_file_name, gs_frame)
+            save_image(gs_masks_dir / image_file_name, mask_binary * 255)
 
             processed_frames.append(current_frame_idx)
             saved += 1
@@ -181,6 +197,7 @@ def main() -> int:
         },
         "output_dir": str(output_dir),
         "background": args.background,
+        "gs_image_mode": args.gs_image_mode,
         "frame_step": args.frame_step,
         "video_info": {
             "frame_count": frame_count,
@@ -192,8 +209,10 @@ def main() -> int:
             "colmap_images": str(colmap_images_dir),
             "colmap_masks": str(colmap_masks_dir),
             "gs_images": str(gs_images_dir),
+            "gs_masks": str(gs_masks_dir),
         },
         "colmap_mask_naming": "Each mask is saved as <image_name>.png, as required by COLMAP mask_path.",
+        "gs_mask_naming": "Each 3DGS mask is saved with the same name as its RGB image.",
     }
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -206,6 +225,7 @@ def main() -> int:
     print(f"COLMAP images: {colmap_images_dir}")
     print(f"COLMAP masks: {colmap_masks_dir}")
     print(f"3DGS images: {gs_images_dir}")
+    print(f"3DGS masks: {gs_masks_dir}")
     return 0
 
 

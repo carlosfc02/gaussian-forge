@@ -1,0 +1,214 @@
+diff --git a/arguments/__init__.py b/arguments/__init__.py
+index 8f3d4f8..6c6e9fb 100644
+--- a/arguments/__init__.py
++++ b/arguments/__init__.py
+@@ -52,12 +52,14 @@ class ModelParams(ParamGroup):
+         self._source_path = ""
+         self._model_path = ""
+         self._images = "images"
++        self.masks = "masks"
+         self._depths = ""
+         self._resolution = -1
+         self._white_background = False
+         self.train_test_exp = False
+         self.data_device = "cuda"
+         self.eval = False
++        self.mask_loss = False
+         super().__init__(parser, "Loading Parameters", sentinel)
+ 
+     def extract(self, args):
+diff --git a/scene/__init__.py b/scene/__init__.py
+index 19d6545..38a646f 100644
+--- a/scene/__init__.py
++++ b/scene/__init__.py
+@@ -41,7 +41,7 @@ class Scene:
+             self.test_cameras = {}
+ 
+         if os.path.exists(os.path.join(args.source_path, "sparse")):
+-            scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.depths, args.eval, args.train_test_exp)
++            scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.masks, args.depths, args.eval, args.train_test_exp)
+         elif os.path.exists(os.path.join(args.source_path, "transforms_train.json")):
+             print("Found transforms_train.json file, assuming Blender data set!")
+             scene_info = sceneLoadTypeCallbacks["Blender"](args.source_path, args.white_background, args.depths, args.eval)
+diff --git a/scene/cameras.py b/scene/cameras.py
+index 57b8575..7a4464c 100644
+--- a/scene/cameras.py
++++ b/scene/cameras.py
+@@ -19,7 +19,7 @@ import cv2
+ class Camera(nn.Module):
+     def __init__(self, resolution, colmap_id, R, T, FoVx, FoVy, depth_params, image, invdepthmap,
+                  image_name, uid,
+-                 trans=np.array([0.0, 0.0, 0.0]), scale=1.0, data_device = "cuda",
++                 object_mask=None, trans=np.array([0.0, 0.0, 0.0]), scale=1.0, data_device = "cuda",
+                  train_test_exp = False, is_test_dataset = False, is_test_view = False
+                  ):
+         super(Camera, self).__init__()
+@@ -51,6 +51,12 @@ class Camera(nn.Module):
+         else: 
+             self.alpha_mask = torch.ones_like(resized_image_rgb[0:1, ...].to(self.data_device))
+ 
++        self.object_mask = None
++        if object_mask is not None:
++            resized_object_mask = PILtoTorch(object_mask, resolution)[0:1, ...]
++            self.object_mask = (resized_object_mask > 0.5).float().to(self.data_device)
++            object_mask.close()
++
+         if train_test_exp and is_test_view:
+             if is_test_dataset:
+                 self.alpha_mask[..., :self.alpha_mask.shape[-1] // 2] = 0
+diff --git a/scene/dataset_readers.py b/scene/dataset_readers.py
+index 89926fc..0dd072f 100644
+--- a/scene/dataset_readers.py
++++ b/scene/dataset_readers.py
+@@ -28,6 +28,7 @@ class CameraInfo(NamedTuple):
+     depth_params: dict
+     image_path: str
+     image_name: str
++    mask_path: str
+     depth_path: str
+     width: int
+     height: int
+@@ -55,7 +56,7 @@ def getNerfppNorm(cam_info):
+ 
+     return {"translate": translate, "radius": radius}
+ 
+-def readColmapCameras(cam_extrinsics, cam_intrinsics, depths_params, images_folder, depths_folder, test_cam_names_list):
++def readColmapCameras(cam_extrinsics, cam_intrinsics, depths_params, images_folder, masks_folder, depths_folder, test_cam_names_list):
+     cam_infos = []
+     for idx, key in enumerate(cam_extrinsics):
+         sys.stdout.write('\r')
+@@ -91,11 +92,13 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, depths_params, images_fold
+ 
+         image_path = os.path.join(images_folder, extr.name)
+         image_name = extr.name
++        mask_path = os.path.join(masks_folder, extr.name) if masks_folder != "" else ""
+         depth_path = os.path.join(depths_folder, f"{extr.name[:-n_remove]}.png") if depths_folder != "" else ""
+ 
+         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, depth_params=depth_params,
+                               image_path=image_path, image_name=image_name, depth_path=depth_path,
+-                              width=width, height=height, is_test=image_name in test_cam_names_list)
++                              mask_path=mask_path, width=width, height=height,
++                              is_test=image_name in test_cam_names_list)
+         cam_infos.append(cam_info)
+ 
+     sys.stdout.write('\n')
+@@ -127,7 +130,7 @@ def storePly(path, xyz, rgb):
+     ply_data = PlyData([vertex_element])
+     ply_data.write(path)
+ 
+-def readColmapSceneInfo(path, images, depths, eval, train_test_exp, llffhold=8):
++def readColmapSceneInfo(path, images, masks, depths, eval, train_test_exp, llffhold=8):
+     try:
+         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
+         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
+@@ -172,10 +175,12 @@ def readColmapSceneInfo(path, images, depths, eval, train_test_exp, llffhold=8):
+         test_cam_names_list = []
+ 
+     reading_dir = "images" if images == None else images
++    masks_dir = "" if masks == "" else masks
+     cam_infos_unsorted = readColmapCameras(
+         cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, depths_params=depths_params,
+         images_folder=os.path.join(path, reading_dir), 
+-        depths_folder=os.path.join(path, depths) if depths != "" else "", test_cam_names_list=test_cam_names_list)
++        masks_folder=os.path.join(path, masks_dir) if masks_dir != "" else "",
++        depths_folder=os.path.join(path, depths) if depths != "" else "", test_cam_names_list=test_cam_names_list)
+     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
+ 
+     train_cam_infos = [c for c in cam_infos if train_test_exp or not c.is_test]
+@@ -233,7 +238,7 @@ def readCamerasFromTransforms(path, transformsfile, depths_folder, white_backgro
+ 
+             cam_infos.append(CameraInfo(uid=idx, R=R, T=T, FovY=FovY, FovX=FovX,
+                             image_path=image_path, image_name=image_name,
+-                            width=image.size[0], height=image.size[1], depth_path=depth_path, depth_params=None, is_test=is_test))
++                            mask_path="", width=image.size[0], height=image.size[1], depth_path=depth_path, depth_params=None, is_test=is_test))
+             
+     return cam_infos
+ 
+diff --git a/train.py b/train.py
+index 9ab2e17..c25c5e2 100644
+--- a/train.py
++++ b/train.py
+@@ -16,7 +16,7 @@
+ 
+ import os
+ import torch
+ from random import randint
+-from utils.loss_utils import l1_loss, ssim
++from utils.loss_utils import l1_loss, masked_l1_loss, ssim
+ from gaussian_renderer import render, network_gui
+ import sys
+ from scene import Scene, GaussianModel
+@@ -95,13 +95,21 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoin
+ 
+         # Loss
+         gt_image = viewpoint_cam.original_image.cuda()
+-        Ll1 = l1_loss(image, gt_image)
++        object_mask = None
++        if dataset.mask_loss:
++            if viewpoint_cam.object_mask is None:
++                raise RuntimeError(f"Mask loss is enabled, but camera '{viewpoint_cam.image_name}' has no object mask.")
++            object_mask = viewpoint_cam.object_mask.cuda()
++            Ll1 = masked_l1_loss(image, gt_image, object_mask)
++            ssim_image = image * object_mask
++            ssim_gt_image = gt_image * object_mask
++        else:
++            Ll1 = l1_loss(image, gt_image)
++            ssim_image = image
++            ssim_gt_image = gt_image
+         if FUSED_SSIM_AVAILABLE:
+-            ssim_value = fused_ssim(image.unsqueeze(0), gt_image.unsqueeze(0))
++            ssim_value = fused_ssim(ssim_image.unsqueeze(0), ssim_gt_image.unsqueeze(0))
+         else:
+-            ssim_value = ssim(image, gt_image)
++            ssim_value = ssim(ssim_image, ssim_gt_image)
+ 
+         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim_value)
+ 
+diff --git a/utils/camera_utils.py b/utils/camera_utils.py
+index 4743646..0d7d704 100644
+--- a/utils/camera_utils.py
++++ b/utils/camera_utils.py
+@@ -10,6 +10,7 @@
+ 
+ from scene.cameras import Camera
+ import numpy as np
++import os
+ from utils.graphics_utils import fov2focal
+ from PIL import Image
+ import cv2
+@@ -30,6 +31,14 @@ def loadCam(args, id, cam_info, resolution_scale, is_nerf_synthetic, is_test_dat
+     else:
+         invdepthmap = None
+         
++    object_mask = None
++    if args.mask_loss:
++        if cam_info.mask_path == "":
++            raise FileNotFoundError(f"Mask loss is enabled, but no mask path was configured for image '{cam_info.image_name}'.")
++        if not os.path.exists(cam_info.mask_path):
++            raise FileNotFoundError(f"Mask loss is enabled, but mask image does not exist: {cam_info.mask_path}")
++        object_mask = Image.open(cam_info.mask_path).convert("L")
++
+     orig_w, orig_h = image.size
+     if args.resolution in [1, 2, 4, 8]:
+         resolution = round(orig_w/(resolution_scale * args.resolution)), round(orig_h/(resolution_scale * args.resolution))
+@@ -63,6 +72,7 @@ def loadCam(args, id, cam_info, resolution_scale, is_nerf_synthetic, is_test_dat
+                   FoVx=cam_info.FovX, FoVy=cam_info.FovY, depth_params=cam_info.depth_params,
+                   image=image, invdepthmap=invdepthmap,
+                   image_name=cam_info.image_name, uid=id, data_device=args.data_device,
++                  object_mask=object_mask,
+                   train_test_exp=args.train_test_exp, is_test_dataset=is_test_dataset, is_test_view=cam_info.is_test)
+ 
+ def cameraList_from_camInfos(cam_infos, resolution_scale, args, is_nerf_synthetic, is_test_dataset):
+diff --git a/utils/loss_utils.py b/utils/loss_utils.py
+index 51c2954..865c8c8 100644
+--- a/utils/loss_utils.py
++++ b/utils/loss_utils.py
+@@ -16,6 +16,9 @@ C2 = 0.03 ** 2
+ def l1_loss(network_output, gt):
+     return torch.abs((network_output - gt)).mean()
+ 
++def masked_l1_loss(network_output, gt, mask):
++    return (torch.abs(network_output - gt) * mask).mean()
++
+ def l2_loss(network_output, gt):
+     return ((network_output - gt) ** 2).mean()

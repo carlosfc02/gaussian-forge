@@ -29,6 +29,10 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
 WORKDIR /opt
 RUN git clone --recursive https://github.com/graphdeco-inria/gaussian-splatting.git /opt/gaussian-splatting
 WORKDIR /opt/gaussian-splatting
+COPY docker/gaussian-splatting/patches/masked-rgb-loss.patch /tmp/masked-rgb-loss.patch
+COPY docker/gaussian-splatting/patches/add-eval-ssim.py /tmp/add-eval-ssim.py
+RUN git apply --recount --ignore-space-change --ignore-whitespace /tmp/masked-rgb-loss.patch
+RUN python /tmp/add-eval-ssim.py
 
 RUN python -m pip install --upgrade pip setuptools wheel
 RUN python -m pip install --extra-index-url https://download.pytorch.org/whl/cu118 \

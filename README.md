@@ -187,9 +187,11 @@ Useful options:
 
 ```bash
 python scripts/prepare_3dgs_dataset.py --job jobs/segmentation/wood_star_job.json --frame-step 2 --background black
+python scripts/prepare_3dgs_dataset.py --job jobs/segmentation/wood_star_job.json --gs-image-mode original
 ```
 
 Use `--frame-step` if you want to subsample the sequence before COLMAP or 3DGS.
+Use `--gs-image-mode original` when you want 3DGS to train against the original RGB frames and use object masks only in the photometric loss.
 
 ## Run COLMAP before masking the training images
 
@@ -218,6 +220,7 @@ Outputs:
 - `data/3dgs/<scene>/colmap/database.db`
 - `data/3dgs/<scene>/colmap/sparse/<best-model>`
 - `data/3dgs/<scene>/gs/source/images`
+- `data/3dgs/<scene>/gs/source/masks` when `gs/masks` exists
 - `data/3dgs/<scene>/gs/source/sparse/0`
 
 Useful options:
@@ -249,6 +252,16 @@ For a quick smoke test:
 ```bash
 python scripts/train_3dgs.py --scene-dir 3dgs/wood_star --iterations 100
 ```
+
+To train object-centric 3DGS with the masked RGB loss, prepare the dataset with original RGB images, run COLMAP normally, then enable mask loss:
+
+```bash
+python scripts/prepare_3dgs_dataset.py --job jobs/segmentation/wood_star_job.json --gs-image-mode original
+python scripts/run_colmap_pipeline.py --scene-dir 3dgs/wood_star --single-camera --matcher sequential
+python scripts/train_3dgs.py --scene-dir 3dgs/wood_star --iterations 30000 --mask-loss
+```
+
+`--mask-loss` expects masks under `gs/source/masks` by default. The pipeline creates that folder from `gs/masks` during undistortion so the masks stay aligned with the images used by 3DGS. Datasets without masks continue to work as before when `--mask-loss` is omitted.
 
 ## Estimate an automatic SuGaR foreground bbox
 

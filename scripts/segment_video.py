@@ -5,13 +5,10 @@ import json
 import os
 import sys
 import time
+import tempfile
 from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
-
-import cv2
-import numpy as np
-from PIL import Image
 
 from sam2_common import (
     DEFAULT_CHECKPOINT,
@@ -31,6 +28,12 @@ def parse_args() -> argparse.Namespace:
         "--job",
         required=True,
         help="Path to a JSON job file, for example /jobs/segmentation/example_job.json.",
+    )
+    parser.add_argument(
+        "--frame-step",
+        type=int,
+        default=1,
+        help="Use every Nth video frame for SAM2 propagation. Defaults to 1.",
     )
     return parser.parse_args()
 
@@ -68,6 +71,8 @@ def validate_bbox(bbox_xyxy: list[float], width: int, height: int) -> list[float
 
 
 def inspect_video(video_path: Path) -> dict[str, float | int]:
+    import cv2
+
     capture = cv2.VideoCapture(str(video_path))
     if not capture.isOpened():
         raise ValueError(f"Could not open video file: {video_path}")
@@ -89,6 +94,43 @@ def inspect_video(video_path: Path) -> dict[str, float | int]:
         "fps": fps,
         "frame_count": frame_count,
     }
+
+
+def materialize_video_frames(video_path: Path, output_dir: Path, frame_step: int) -> list[int]:
+    import cv2
+
+    if frame_step < 1:
+        raise ValueError("--frame-step must be greater than or equal to 1.")
+
+    capture = cv2.VideoCapture(str(video_path))
+    if not capture.isOpened():
+        raise ValueError(f"Could not open video file: {video_path}")
+
+    selected_indices: list[int] = []
+    frame_idx = 0
+    sequential_idx = 0
+
+    try:
+        while True:
+            ok, frame = capture.read()
+            if not ok or frame is None:
+                break
+            if frame_idx % frame_step == 0:
+                destination = output_dir / f"{sequential_idx:06d}.jpg"
+                if not cv2.imwrite(str(destination), frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95]):
+                    raise RuntimeError(f"Could not write temporary frame: {destination}")
+                selected_indices.append(frame_idx)
+                sequential_idx += 1
+            frame_idx += 1
+    finally:
+        capture.release()
+
+    if not selected_indices:
+        raise RuntimeError(f"No frames were extracted from video: {video_path}")
+    if selected_indices[0] != 0:
+        raise RuntimeError("The first extracted frame must correspond to original frame 0.")
+
+    return selected_indices
 
 
 def build_manifest(
@@ -138,6 +180,8 @@ def write_manifest(output_dir: Path, manifest: dict) -> None:
 
 
 def select_mask_for_object(object_ids, masks, object_id: int) -> np.ndarray:
+    import numpy as np
+
     for candidate_id, candidate_mask in zip(object_ids, masks):
         if int(candidate_id) != int(object_id):
             continue
@@ -149,12 +193,17 @@ def select_mask_for_object(object_ids, masks, object_id: int) -> np.ndarray:
 
 
 def save_mask(mask: np.ndarray, destination: Path) -> None:
+    from PIL import Image
+
     destination.parent.mkdir(parents=True, exist_ok=True)
     Image.fromarray(mask, mode="L").save(destination)
 
 
 def main() -> int:
     args = parse_args()
+    if args.frame_step < 1:
+        raise ValueError("--frame-step must be greater than or equal to 1.")
+
     job_path = Path(args.job).resolve()
     if not job_path.exists():
         raise FileNotFoundError(f"Job file does not exist: {job_path}")
@@ -189,6 +238,7 @@ def main() -> int:
     saved_frames: set[int] = set()
 
     import torch
+    import numpy as np
     from sam2.build_sam import build_sam2_video_predictor
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -199,6 +249,21 @@ def main() -> int:
     torch.backends.cudnn.allow_tf32 = True
 
     try:
+        print(
+            f"[sam2] Preparing frames from {video_path} "
+            f"({video_info['width']}x{video_info['height']}, {video_info['frame_count']} frames, "
+            f"frame_step={args.frame_step})",
+            flush=True,
+        )
+        temp_dir_context = tempfile.TemporaryDirectory(prefix="sam2_frames_")
+        temp_dir_name = temp_dir_context.__enter__()
+        frame_dir = Path(temp_dir_name)
+        selected_indices = materialize_video_frames(video_path, frame_dir, args.frame_step)
+        video_info["segmentation_frame_step"] = args.frame_step
+        video_info["segmentation_frame_count"] = len(selected_indices)
+        print(f"[sam2] Extracted {len(selected_indices)} frames to {frame_dir}", flush=True)
+
+        print(f"[sam2] Loading checkpoint {checkpoint_name}", flush=True)
         predictor = build_sam2_video_predictor(
             config_name,
             str(checkpoint_path),
@@ -212,7 +277,9 @@ def main() -> int:
         )
 
         with torch.inference_mode(), autocast_context:
-            inference_state = predictor.init_state(video_path=str(video_path))
+            print("[sam2] Initializing video state", flush=True)
+            inference_state = predictor.init_state(video_path=str(frame_dir))
+            print("[sam2] Adding bbox prompt", flush=True)
             prompt_frame_idx, prompt_object_ids, prompt_masks = predictor.add_new_points_or_box(
                 inference_state=inference_state,
                 frame_idx=0,
@@ -225,16 +292,19 @@ def main() -> int:
                 prompt_masks,
                 int(job_payload["object_id"]),
             )
-            save_mask(prompt_mask, output_dir / f"{int(prompt_frame_idx):06d}.png")
-            saved_frames.add(int(prompt_frame_idx))
+            prompt_original_frame_idx = selected_indices[int(prompt_frame_idx)]
+            save_mask(prompt_mask, output_dir / f"{prompt_original_frame_idx:06d}.png")
+            saved_frames.add(prompt_original_frame_idx)
             masks_written += 1
 
+            print("[sam2] Propagating masks", flush=True)
             for frame_idx, object_ids, mask_logits in predictor.propagate_in_video(inference_state):
                 mask = select_mask_for_object(object_ids, mask_logits, int(job_payload["object_id"]))
-                save_mask(mask, output_dir / f"{int(frame_idx):06d}.png")
-                if int(frame_idx) not in saved_frames:
+                original_frame_idx = selected_indices[int(frame_idx)]
+                save_mask(mask, output_dir / f"{original_frame_idx:06d}.png")
+                if original_frame_idx not in saved_frames:
                     masks_written += 1
-                    saved_frames.add(int(frame_idx))
+                    saved_frames.add(original_frame_idx)
 
         if masks_written == 0:
             raise RuntimeError("SAM 2 finished without producing any masks.")
@@ -254,7 +324,10 @@ def main() -> int:
             status="success",
         )
         write_manifest(output_dir, manifest)
+        temp_dir_context.__exit__(None, None, None)
     except Exception as exc:
+        if "temp_dir_context" in locals():
+            temp_dir_context.__exit__(type(exc), exc, exc.__traceback__)
         finished_at = datetime.now(timezone.utc).isoformat()
         duration_seconds = time.time() - started
         try:

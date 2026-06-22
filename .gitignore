@@ -1,5 +1,7 @@
 # Local-only context
 LLM_CONTEXT.md
+memoria/*
+
 
 # Python
 __pycache__/

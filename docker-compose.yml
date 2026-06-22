@@ -15,6 +15,7 @@
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
     volumes:
+      - ./scripts:/app/scripts
       - ./data:/data
       - ./jobs:/jobs
       - ./logs:/logs

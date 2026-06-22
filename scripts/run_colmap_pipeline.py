@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import shutil
 import shlex
 import subprocess
 import sys
@@ -217,6 +218,89 @@ def normalize_3dgs_sparse_layout(scene_dir_in_container: str, executed_commands:
     )
 
 
+def materialize_3dgs_masks_from_colmap_masks(colmap_masks: Path, gs_masks: Path) -> int:
+    if not colmap_masks.exists():
+        return 0
+    gs_masks.mkdir(parents=True, exist_ok=True)
+
+    copied = 0
+    for path in sorted(colmap_masks.iterdir()):
+        if not path.is_file() or path.suffix.lower() != ".png":
+            continue
+        # COLMAP mask_path uses <image_name>.png, e.g. 000194.png.png.
+        target_name = path.stem
+        shutil.copy2(path, gs_masks / target_name)
+        copied += 1
+
+    return copied
+
+
+def undistort_3dgs_masks(
+    scene_dir: Path,
+    scene_dir_in_container: str,
+    sparse_model_name: str,
+    executed_commands: list[str] | None = None,
+) -> int:
+    gs_dir = scene_dir / "gs"
+    temp_output = gs_dir / "source_masks_undistort_tmp"
+    target_masks = gs_dir / "source" / "masks"
+
+    temp_output_in_container = f"{scene_dir_in_container}/gs/source_masks_undistort_tmp"
+    reset_path_in_container(temp_output_in_container, executed_commands)
+
+    run_command(
+        docker_compose_run(
+            "colmap",
+            [
+                "colmap",
+                "image_undistorter",
+                "--image_path",
+                f"{scene_dir_in_container}/gs/masks",
+                "--input_path",
+                f"{scene_dir_in_container}/colmap/sparse/{sparse_model_name}",
+                "--output_path",
+                temp_output_in_container,
+                "--output_type",
+                "COLMAP",
+            ],
+        ),
+        executed_commands,
+    )
+
+    copy_code = (
+        "from pathlib import Path; "
+        "import shutil, sys; "
+        "src = Path(sys.argv[1]); "
+        "dst = Path(sys.argv[2]); "
+        "shutil.rmtree(dst, ignore_errors=True); "
+        "dst.mkdir(parents=True, exist_ok=True); "
+        "copied = [shutil.copy2(path, dst / path.name) for path in sorted(src.iterdir()) if path.is_file()]; "
+        "print(len(copied))"
+    )
+    copied_output = run_command_capture(
+        docker_compose_run(
+            "colmap",
+            [
+                "python3",
+                "-c",
+                copy_code,
+                f"{temp_output_in_container}/images",
+                f"{scene_dir_in_container}/gs/source/masks",
+            ],
+        ),
+        executed_commands,
+    )
+    reset_path_in_container(temp_output_in_container, executed_commands)
+
+    try:
+        copied = int(copied_output.strip().splitlines()[-1])
+    except (IndexError, ValueError) as exc:
+        raise RuntimeError(f"Could not parse undistorted mask copy count: {copied_output}") from exc
+    if copied == 0:
+        raise FileNotFoundError(f"No undistorted mask images were found in: {target_masks}")
+    return copied
+
+
 def count_files(path: Path) -> int:
     return sum(1 for item in path.iterdir() if item.is_file()) if path.exists() else 0
 
@@ -235,6 +319,7 @@ def main() -> int:
     colmap_masks = colmap_dir / "masks"
     sparse_dir = colmap_dir / "sparse"
     gs_images = scene_dir / "gs" / "images"
+    gs_masks = scene_dir / "gs" / "masks"
     gs_source = scene_dir / "gs" / "source"
     use_gpu_value = "1" if args.use_gpu else "0"
 
@@ -243,10 +328,16 @@ def main() -> int:
     if args.use_colmap_masks and not colmap_masks.exists():
         raise FileNotFoundError(f"COLMAP masks directory does not exist: {colmap_masks}")
     if not gs_images.exists():
-        raise FileNotFoundError(f"Masked GS images directory does not exist: {gs_images}")
+        raise FileNotFoundError(f"3DGS images directory does not exist: {gs_images}")
+    materialized_gs_masks = 0
+    if not gs_masks.exists() and colmap_masks.exists():
+        materialized_gs_masks = materialize_3dgs_masks_from_colmap_masks(colmap_masks, gs_masks)
+        if materialized_gs_masks:
+            print(f"Created 3DGS masks from COLMAP masks: {gs_masks} ({materialized_gs_masks} images)")
 
     total_input_images = count_files(colmap_images)
     total_mask_images = count_files(colmap_masks)
+    total_gs_mask_images = count_files(gs_masks)
     scene_dir_in_container = f"/data/{scene_dir.relative_to(data_root).as_posix()}"
     colmap_dir_in_container = f"{scene_dir_in_container}/colmap"
     gs_dir_in_container = f"{scene_dir_in_container}/gs"
@@ -357,6 +448,20 @@ def main() -> int:
         normalize_3dgs_sparse_layout(scene_dir_in_container, executed_commands)
         stage_durations["undistort_seconds"] = round(time.time() - stage_started, 3)
 
+        if gs_masks.exists():
+            stage_started = time.time()
+            undistorted_mask_count = undistort_3dgs_masks(
+                scene_dir,
+                scene_dir_in_container,
+                sparse_model.name,
+                executed_commands,
+            )
+            stage_durations["mask_undistort_seconds"] = round(time.time() - stage_started, 3)
+        else:
+            undistorted_mask_count = 0
+    else:
+        undistorted_mask_count = count_files(gs_source / "masks")
+
     registration_ratio = (
         float(selected_model_metrics["registered_images"]) / total_input_images if total_input_images else 0.0
     )
@@ -373,11 +478,13 @@ def main() -> int:
             "colmap_images": str(colmap_images),
             "colmap_masks": str(colmap_masks) if colmap_masks.exists() else None,
             "gs_images": str(gs_images),
+            "gs_masks": str(gs_masks) if gs_masks.exists() else None,
         },
         "output_paths": {
             "database_path": str(colmap_dir / "database.db"),
             "sparse_dir": str(sparse_dir),
             "gs_source": str(gs_source),
+            "gs_source_masks": str(gs_source / "masks") if (gs_source / "masks").exists() else None,
             "selected_sparse_model": str(sparse_model),
         },
         "parameters": {
@@ -392,10 +499,14 @@ def main() -> int:
             "skip_matching": args.skip_matching,
             "skip_mapping": args.skip_mapping,
             "skip_undistort": args.skip_undistort,
+            "materialized_gs_masks_from_colmap_masks": bool(materialized_gs_masks),
         },
         "metrics": {
             "total_input_images": total_input_images,
             "total_mask_images": total_mask_images,
+            "total_gs_mask_images": total_gs_mask_images,
+            "materialized_gs_mask_images": materialized_gs_masks,
+            "undistorted_mask_images": undistorted_mask_count,
             "registered_images": int(selected_model_metrics["registered_images"]),
             "registration_ratio": registration_ratio,
             "selected_sparse_model_id": int(selected_model_metrics["model_id"]),
@@ -416,6 +527,8 @@ def main() -> int:
     print(f"COLMAP GPU enabled: {args.use_gpu}")
     print(f"COLMAP sparse model: {sparse_model}")
     print(f"3DGS source dataset: {gs_source}")
+    if undistorted_mask_count:
+        print(f"3DGS source masks: {gs_source / 'masks'} ({undistorted_mask_count} images)")
     print(f"Saved metrics manifest: {metrics_manifest_path}")
     return 0
 

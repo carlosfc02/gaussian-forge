@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import argparse
+import re
 import shlex
 import subprocess
 import sys
@@ -47,6 +48,20 @@ def parse_args() -> argparse.Namespace:
         help="Train with white background instead of black.",
     )
     parser.add_argument(
+        "--mask-loss",
+        action="store_true",
+        help="Enable object mask weighting for the 3DGS RGB/SSIM photometric loss.",
+    )
+    parser.add_argument(
+        "--masks-dir",
+        default="masks",
+        help="Mask directory inside the 3DGS source dataset. Defaults to masks.",
+    )
+    parser.add_argument(
+        "--log-path",
+        help="Optional path where combined 3DGS stdout/stderr will be written.",
+    )
+    parser.add_argument(
         "--extra-arg",
         action="append",
         default=[],
@@ -55,9 +70,56 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_command(command: list[str]) -> None:
+def run_command(command: list[str], log_path: Path | None = None) -> str:
     print("[cmd]", shlex.join(command))
-    subprocess.run(command, check=True)
+    if log_path is None:
+        completed = subprocess.run(command, check=True, capture_output=True, text=True)
+        output = "\n".join(part for part in [completed.stdout, completed.stderr] if part)
+        if output:
+            print(output, end="" if output.endswith("\n") else "\n")
+        return output
+
+    output_parts: list[str] = []
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("w", encoding="utf-8", errors="replace") as log_handle:
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        assert process.stdout is not None
+        for line in process.stdout:
+            print(line, end="")
+            log_handle.write(line)
+            output_parts.append(line)
+        return_code = process.wait()
+
+    if return_code != 0:
+        raise subprocess.CalledProcessError(return_code, command)
+    return "".join(output_parts)
+
+
+def parse_eval_metrics(output: str) -> list[dict[str, float | int | str | None]]:
+    pattern = re.compile(
+        r"\[ITER\s+(?P<iteration>\d+)\]\s+Evaluating\s+(?P<split>\w+):\s+"
+        r"L1\s+(?P<l1>[-+0-9.eE]+)\s+PSNR\s+(?P<psnr>[-+0-9.eE]+)"
+        r"(?:\s+SSIM\s+(?P<ssim>[-+0-9.eE]+))?"
+    )
+    metrics = []
+    for match in pattern.finditer(output):
+        metrics.append(
+            {
+                "iteration": int(match.group("iteration")),
+                "split": match.group("split"),
+                "l1": float(match.group("l1")),
+                "psnr": float(match.group("psnr")),
+                "ssim": float(match.group("ssim")) if match.group("ssim") is not None else None,
+            }
+        )
+    return metrics
 
 
 def find_latest_iteration_point_cloud(model_dir: Path) -> tuple[int | None, Path | None]:
@@ -103,6 +165,10 @@ def main() -> int:
         raise FileNotFoundError(f"3DGS source images directory does not exist: {source_dir / 'images'}")
     if not (source_dir / "sparse").exists():
         raise FileNotFoundError(f"3DGS sparse directory does not exist: {source_dir / 'sparse'}")
+    if args.mask_loss and not (source_dir / args.masks_dir).exists():
+        raise FileNotFoundError(
+            f"3DGS mask loss was requested but masks directory does not exist: {source_dir / args.masks_dir}"
+        )
 
     source_dir_in_container = f"/data/{source_dir.relative_to(data_root).as_posix()}"
     model_dir_in_container = f"/data/{model_dir.relative_to(data_root).as_posix()}"
@@ -130,9 +196,12 @@ def main() -> int:
         command.append("--eval")
     if args.white_background:
         command.append("--white_background")
+    if args.mask_loss:
+        command.extend(["--mask_loss", "--masks", args.masks_dir])
     command.extend(args.extra_arg)
 
-    run_command(command)
+    log_path = Path(args.log_path).resolve() if args.log_path else model_dir / "train_3dgs.log"
+    command_output = run_command(command, log_path)
     final_iteration, final_point_cloud = find_latest_iteration_point_cloud(model_dir)
     finished_at = utc_now_iso()
     duration_seconds = time.time() - started
@@ -155,8 +224,12 @@ def main() -> int:
             "resolution": args.resolution,
             "eval": args.eval,
             "white_background": args.white_background,
+            "mask_loss": args.mask_loss,
+            "masks_dir": args.masks_dir,
+            "log_path": str(log_path),
             "extra_arg": args.extra_arg,
         },
+        "metrics_3dgs": parse_eval_metrics(command_output),
         "artifacts": {
             "model_dir_exists": model_dir.exists(),
             "final_iteration_found": final_iteration,
