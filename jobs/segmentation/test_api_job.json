@@ -1,0 +1,12 @@
+{
+  "video_path": "videos/test_api.mkv",
+  "output_dir": "masks/test_api",
+  "object_id": 1,
+  "bbox_xyxy": [
+    540,
+    168,
+    770,
+    544
+  ],
+  "checkpoint": "sam2.1_hiera_small"
+}

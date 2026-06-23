@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import re
@@ -92,8 +92,9 @@ def run_command(command: list[str], log_path: Path | None = None) -> str:
         )
         assert process.stdout is not None
         for line in process.stdout:
-            print(line, end="")
+            print(line, end="", flush=True)
             log_handle.write(line)
+            log_handle.flush()
             output_parts.append(line)
         return_code = process.wait()
 

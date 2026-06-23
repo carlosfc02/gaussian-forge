@@ -49,6 +49,12 @@ def resolve_scene_thumbnail_file(scene_name: str) -> Path:
 
 
 def detect_scene_status(scene_name: str, video_file: Path | None = None) -> SceneStatus:
+    from app.services.pipeline_service import get_pipeline_scene_status
+
+    pipeline_status = get_pipeline_scene_status(scene_name)
+    if pipeline_status is not None:
+        return pipeline_status
+
     video_exists = video_file is not None or resolve_scene_video_file(scene_name) is not None
     masks_exists = (MASKS_DIR / scene_name).exists()
     gs_exists = (GS_DIR / scene_name).exists()
@@ -67,6 +73,8 @@ def detect_scene_status(scene_name: str, video_file: Path | None = None) -> Scen
 
 
 def build_scene_read(scene_name: str, video_file: Path | None = None) -> SceneRead:
+    from app.services.pipeline_service import get_latest_pipeline_run
+
     scene_name = sanitaze_scene_name(scene_name)
     video_file = video_file or resolve_scene_video_file(scene_name)
 
@@ -79,6 +87,7 @@ def build_scene_read(scene_name: str, video_file: Path | None = None) -> SceneRe
         sugar_output_path=str(SUGAR_OUTPUT_DIR / scene_name)
         if (SUGAR_OUTPUT_DIR / scene_name).exists()
         else None,
+        pipeline_run=get_latest_pipeline_run(scene_name),
     )
 
 

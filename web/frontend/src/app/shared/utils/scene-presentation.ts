@@ -123,7 +123,14 @@ const SCENE_STATUS_META: Record<SceneStatus, SceneStatusMeta> = {
     tone: 'danger',
     icon: 'bi-exclamation-triangle',
   },
-};
+  [SceneStatus.CANCELED]: {
+    label: 'Canceled',
+    stage: 'Pipeline canceled',
+    description: 'The active pipeline run was canceled by the user.',
+    progress: 100,
+    tone: 'warning',
+    icon: 'bi-stop-circle',
+  },};
 
 export function getSceneStatusMeta(status: SceneStatus): SceneStatusMeta {
   return SCENE_STATUS_META[status];
@@ -142,7 +149,7 @@ export function getSceneAssetCount(scene: Scene): number {
 }
 
 export function isSceneTerminal(status: SceneStatus): boolean {
-  return [SceneStatus.COMPLETED, SceneStatus.ERROR, SceneStatus.SUGAR_READY].includes(status);
+  return [SceneStatus.COMPLETED, SceneStatus.ERROR, SceneStatus.CANCELED, SceneStatus.SUGAR_READY].includes(status);
 }
 
 export function isSceneHealthy(status: SceneStatus): boolean {

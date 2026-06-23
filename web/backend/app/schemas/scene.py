@@ -1,6 +1,8 @@
 from enum import Enum
 from pydantic import BaseModel
 
+from app.schemas.pipeline import PipelineRunRead
+
 class SceneStatus(str, Enum):
     CREATED = "CREATED"
     VIDEO_UPLOADED = "VIDEO_UPLOADED"
@@ -8,6 +10,7 @@ class SceneStatus(str, Enum):
     SEGMENTING = "SEGMENTING"
     MASKS_READY = "MASKS_READY"
     DATASET_READY = "DATASET_READY"
+    COLMAP_RUNNING = "COLMAP_RUNNING"
     COLMAP_READY = "COLMAP_READY"
     TRAINING_3DGS = "TRAINING_3DGS"
     THREE_DGS_READY = "THREE_DGS_READY"
@@ -15,6 +18,7 @@ class SceneStatus(str, Enum):
     SUGAR_READY = "SUGAR_READY"
     COMPLETED = "COMPLETED"
     ERROR = "ERROR"
+    CANCELED = "CANCELED"
 
 class SceneRead(BaseModel):
     name: str
@@ -23,3 +27,4 @@ class SceneRead(BaseModel):
     masks_path: str | None = None
     gs_path: str | None = None
     sugar_output_path: str | None = None
+    pipeline_run: PipelineRunRead | None = None

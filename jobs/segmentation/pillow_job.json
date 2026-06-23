@@ -1,0 +1,12 @@
+{
+  "video_path": "videos/pillow.mp4",
+  "output_dir": "masks/pillow",
+  "object_id": 1,
+  "bbox_xyxy": [
+    103,
+    858,
+    1044,
+    1420
+  ],
+  "checkpoint": "sam2.1_hiera_small"
+}

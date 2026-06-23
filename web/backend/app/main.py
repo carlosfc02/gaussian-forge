@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health, scenes
+from app.api.routes import health, pipeline, scenes
 from app.core.paths import ensure_base_directories
 
 
@@ -37,6 +37,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router, prefix="/api")
+app.include_router(pipeline.router, prefix="/api")
 app.include_router(scenes.router, prefix="/api")
 
 @app.get("/")

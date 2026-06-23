@@ -9,46 +9,12 @@ import shutil
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from pipeline_manifest import build_command_string, utc_now_iso, write_json
+from pipeline_presets import PRESETS, PipelinePreset
 from sam2_common import DEFAULT_CHECKPOINT, get_data_root, resolve_path_under_root
-
-
-@dataclass(frozen=True)
-class PipelinePreset:
-    frame_step: int
-    sequential_overlap: int
-    iterations: int
-    sugar_mode: str
-    sugar_refinement_time: str
-
-
-PRESETS = {
-    "fast": PipelinePreset(
-        frame_step=4,
-        sequential_overlap=10,
-        iterations=1000,
-        sugar_mode="low",
-        sugar_refinement_time="short",
-    ),
-    "balanced": PipelinePreset(
-        frame_step=2,
-        sequential_overlap=20,
-        iterations=7000,
-        sugar_mode="default",
-        sugar_refinement_time="medium",
-    ),
-    "quality": PipelinePreset(
-        frame_step=1,
-        sequential_overlap=40,
-        iterations=30000,
-        sugar_mode="high",
-        sugar_refinement_time="long",
-    ),
-}
 
 
 def parse_args() -> argparse.Namespace:
@@ -63,7 +29,7 @@ def parse_args() -> argparse.Namespace:
         default="balanced",
         help="Quality preset. Defaults to balanced.",
     )
-    parser.add_argument("--run-name", help="Optional suffix for model, SuGaR output, and logs.")
+    parser.add_argument("--run-name", help="Optional run id used for logs. Model output names stay stable by default.")
     parser.add_argument("--force", action="store_true", help="Allow overwriting stage outputs.")
 
     parser.add_argument("--mask-loss", action="store_true", help="Train 3DGS with masked RGB loss.")
@@ -113,9 +79,45 @@ def parse_args() -> argparse.Namespace:
         default="sequential",
         help="COLMAP matcher. Defaults to sequential.",
     )
+    parser.add_argument("--camera-model", default="OPENCV", help="COLMAP camera model. Defaults to OPENCV.")
+    parser.add_argument("--single-camera", dest="single_camera", action="store_true", default=True)
+    parser.add_argument("--multi-camera", dest="single_camera", action="store_false")
+    parser.add_argument("--use-gpu", dest="use_gpu", action="store_true", default=None)
+    parser.add_argument("--no-use-gpu", dest="use_gpu", action="store_false")
+    parser.add_argument("--use-colmap-masks", dest="use_colmap_masks", action="store_true", default=None)
+    parser.add_argument("--no-use-colmap-masks", dest="use_colmap_masks", action="store_false")
+    parser.add_argument("--sparse-model", help="COLMAP sparse model directory id to reuse.")
+    parser.add_argument("--skip-feature-extraction", action="store_true", help="Reuse an existing COLMAP database.")
+    parser.add_argument("--skip-matching", action="store_true", help="Skip COLMAP matching.")
+    parser.add_argument("--skip-mapping", action="store_true", help="Skip COLMAP sparse mapping.")
+    parser.add_argument("--skip-undistort", action="store_true", help="Skip COLMAP undistortion.")
+
     parser.add_argument("--resolution", type=int, default=1, help="3DGS resolution argument. Defaults to 1.")
+    parser.add_argument("--eval-3dgs", action="store_true", help="Enable the 3DGS eval split without running metrics.")
+    parser.add_argument("--masks-dir", help="Mask directory inside the 3DGS source dataset. Defaults to masks.")
+
     parser.add_argument("--sugar-output-root", default="sugar_output", help="SuGaR output root relative to data/.")
     parser.add_argument("--sugar-regularization", choices=("dn_consistency", "density", "sdf"), default="dn_consistency")
+    parser.add_argument("--sugar-refinement-time", choices=("short", "medium", "long"), help="Override preset SuGaR refinement time.")
+    parser.add_argument("--sugar-quality-mode", choices=("preset", "low", "high"), default="preset", help="Override preset SuGaR quality mode.")
+    parser.add_argument("--surface-level", type=float)
+    parser.add_argument("--n-vertices", type=int)
+    parser.add_argument("--gaussians-per-triangle", type=int)
+    parser.add_argument("--refinement-iterations", type=int)
+    parser.add_argument("--square-size", type=int)
+    parser.add_argument("--sugar-gpu", type=int)
+    parser.add_argument("--bboxmin")
+    parser.add_argument("--bboxmax")
+    parser.add_argument("--center-bbox", dest="center_bbox", action="store_true", default=None)
+    parser.add_argument("--no-center-bbox", dest="center_bbox", action="store_false")
+    parser.add_argument("--export-obj", dest="export_obj", action="store_true", default=None)
+    parser.add_argument("--no-export-obj", dest="export_obj", action="store_false")
+    parser.add_argument("--export-ply", dest="export_ply", action="store_true", default=None)
+    parser.add_argument("--no-export-ply", dest="export_ply", action="store_false")
+    parser.add_argument("--postprocess-mesh", dest="postprocess_mesh", action="store_true", default=None)
+    parser.add_argument("--no-postprocess-mesh", dest="postprocess_mesh", action="store_false")
+    parser.add_argument("--postprocess-density-threshold", type=float)
+    parser.add_argument("--postprocess-iterations", type=int)
     parser.add_argument("--extra-3dgs-arg", action="append", default=[], help="Extra arg passed to train_3dgs.py. Repeatable.")
     parser.add_argument("--extra-sugar-arg", action="append", default=[], help="Extra arg passed to train_sugar.py. Repeatable.")
     return parser.parse_args()
@@ -232,6 +234,12 @@ def append_optional_arg(command: list[str], flag: str, value: str | None) -> Non
         command.extend([flag, value])
 
 
+def append_optional_bool_arg(command: list[str], value: bool | None, true_flag: str, false_flag: str) -> None:
+    if value is None:
+        return
+    command.append(true_flag if value else false_flag)
+
+
 def append_passthrough_arg(command: list[str], flag: str, value: str) -> None:
     command.append(f"{flag}={value}")
 
@@ -284,9 +292,46 @@ def build_wsl_continuation_command(args: argparse.Namespace, job_path: Path, run
         str(args.sequential_overlap) if args.sequential_overlap is not None else None,
     )
     command.extend(["--matcher", args.matcher])
+    command.extend(["--camera-model", args.camera_model])
+    if args.single_camera:
+        command.append("--single-camera")
+    else:
+        command.append("--multi-camera")
+    append_optional_bool_arg(command, args.use_gpu, "--use-gpu", "--no-use-gpu")
+    append_optional_bool_arg(command, args.use_colmap_masks, "--use-colmap-masks", "--no-use-colmap-masks")
+    append_optional_arg(command, "--sparse-model", args.sparse_model)
+    if args.skip_feature_extraction:
+        command.append("--skip-feature-extraction")
+    if args.skip_matching:
+        command.append("--skip-matching")
+    if args.skip_mapping:
+        command.append("--skip-mapping")
+    if args.skip_undistort:
+        command.append("--skip-undistort")
+
     command.extend(["--resolution", str(args.resolution)])
+    if args.eval_3dgs:
+        command.append("--eval-3dgs")
+    append_optional_arg(command, "--masks-dir", args.masks_dir)
+
     command.extend(["--sugar-output-root", args.sugar_output_root])
     command.extend(["--sugar-regularization", args.sugar_regularization])
+    append_optional_arg(command, "--sugar-refinement-time", args.sugar_refinement_time)
+    command.extend(["--sugar-quality-mode", args.sugar_quality_mode])
+    append_optional_arg(command, "--surface-level", str(args.surface_level) if args.surface_level is not None else None)
+    append_optional_arg(command, "--n-vertices", str(args.n_vertices) if args.n_vertices is not None else None)
+    append_optional_arg(command, "--gaussians-per-triangle", str(args.gaussians_per_triangle) if args.gaussians_per_triangle is not None else None)
+    append_optional_arg(command, "--refinement-iterations", str(args.refinement_iterations) if args.refinement_iterations is not None else None)
+    append_optional_arg(command, "--square-size", str(args.square_size) if args.square_size is not None else None)
+    append_optional_arg(command, "--sugar-gpu", str(args.sugar_gpu) if args.sugar_gpu is not None else None)
+    append_optional_arg(command, "--bboxmin", args.bboxmin)
+    append_optional_arg(command, "--bboxmax", args.bboxmax)
+    append_optional_bool_arg(command, args.center_bbox, "--center-bbox", "--no-center-bbox")
+    append_optional_bool_arg(command, args.export_obj, "--export-obj", "--no-export-obj")
+    append_optional_bool_arg(command, args.export_ply, "--export-ply", "--no-export-ply")
+    append_optional_bool_arg(command, args.postprocess_mesh, "--postprocess-mesh", "--no-postprocess-mesh")
+    append_optional_arg(command, "--postprocess-density-threshold", str(args.postprocess_density_threshold) if args.postprocess_density_threshold is not None else None)
+    append_optional_arg(command, "--postprocess-iterations", str(args.postprocess_iterations) if args.postprocess_iterations is not None else None)
 
     for extra_arg in args.extra_3dgs_arg:
         command.extend(["--extra-3dgs-arg", extra_arg])
@@ -441,8 +486,9 @@ def run_logged(command: list[str], log_path: Path) -> str:
         )
         assert process.stdout is not None
         for line in process.stdout:
-            print(line, end="")
+            print(line, end="", flush=True)
             log_handle.write(line)
+            log_handle.flush()
             output_parts.append(line)
         return_code = process.wait()
 
@@ -585,8 +631,9 @@ def extra_arg_value(tokens: list[str], names: tuple[str, ...]) -> str | None:
     return None
 
 
-def sugar_metrics_parameters(preset: PipelinePreset, extra_args: list[str]) -> dict[str, str]:
-    if preset.sugar_mode == "low":
+def sugar_metrics_parameters(args: argparse.Namespace, preset: PipelinePreset) -> dict[str, str]:
+    sugar_mode = preset.sugar_mode if args.sugar_quality_mode == "preset" else args.sugar_quality_mode
+    if sugar_mode == "low":
         n_vertices = 200_000
         gaussians_per_triangle = 6
     else:
@@ -594,26 +641,35 @@ def sugar_metrics_parameters(preset: PipelinePreset, extra_args: list[str]) -> d
         gaussians_per_triangle = 1
 
     refinement_iterations_by_time = {"short": 2_000, "medium": 7_000, "long": 15_000}
-    refinement_iterations = refinement_iterations_by_time[preset.sugar_refinement_time]
+    refinement_time = args.sugar_refinement_time or preset.sugar_refinement_time
+    refinement_iterations = refinement_iterations_by_time[refinement_time]
     surface_level = 0.3
 
-    tokens = extra_sugar_tokens(extra_args)
-    refinement_time = extra_arg_value(tokens, ("--refinement_time", "--refinement-time"))
-    if refinement_time in refinement_iterations_by_time:
-        refinement_iterations = refinement_iterations_by_time[refinement_time]
+    tokens = extra_sugar_tokens(args.extra_sugar_arg)
+    refinement_time_override = extra_arg_value(tokens, ("--refinement_time", "--refinement-time"))
+    if refinement_time_override in refinement_iterations_by_time:
+        refinement_iterations = refinement_iterations_by_time[refinement_time_override]
 
     surface_override = extra_arg_value(tokens, ("-l", "--surface_level", "--surface-level"))
     vertices_override = extra_arg_value(tokens, ("-v", "--n_vertices_in_mesh"))
     gaussians_override = extra_arg_value(tokens, ("-g", "--gaussians_per_triangle"))
     refinement_override = extra_arg_value(tokens, ("-f", "--refinement_iterations"))
 
-    if surface_override is not None:
+    if args.surface_level is not None:
+        surface_level = args.surface_level
+    elif surface_override is not None:
         surface_level = float(surface_override)
-    if vertices_override is not None:
+    if args.n_vertices is not None:
+        n_vertices = args.n_vertices
+    elif vertices_override is not None:
         n_vertices = int(vertices_override)
-    if gaussians_override is not None:
+    if args.gaussians_per_triangle is not None:
+        gaussians_per_triangle = args.gaussians_per_triangle
+    elif gaussians_override is not None:
         gaussians_per_triangle = int(gaussians_override)
-    if refinement_override is not None:
+    if args.refinement_iterations is not None:
+        refinement_iterations = args.refinement_iterations
+    elif refinement_override is not None:
         refinement_iterations = int(refinement_override)
 
     return {
@@ -701,7 +757,7 @@ def build_official_sugar_metrics_command(
     sugar_scene_output_dir = sugar_output_root / sugar_output_name
     sugar_output_root_in_container = f"/data/{sugar_scene_output_dir.relative_to(data_root).as_posix()}"
     config_path_in_container = f"/data/{config_path.relative_to(data_root).as_posix()}"
-    params = sugar_metrics_parameters(preset, args.extra_sugar_arg)
+    params = sugar_metrics_parameters(args, preset)
     sync_refinement_iterations_with_existing_checkpoint(
         sugar_scene_output_dir,
         source_dir.name,
@@ -755,16 +811,16 @@ def main() -> int:
     mask_output_dir = args.mask_output_dir or f"masks/{args.scene_name}"
     dataset_dir = args.dataset_dir or f"3dgs/{args.scene_name}"
     scene_dir = resolve_path_under_root(data_root, dataset_dir, "dataset-dir")
-    gs_model_dir_arg = args.gs_model_dir or (
-        f"{Path(dataset_dir).as_posix()}/gs/model_{run_name}" if args.run_name else f"{Path(dataset_dir).as_posix()}/gs/model"
-    )
+    gs_model_dir_arg = args.gs_model_dir or f"{Path(dataset_dir).as_posix()}/gs/model"
     gs_model_dir = resolve_path_under_root(data_root, gs_model_dir_arg, "gs-model-dir")
-    sugar_output_name = args.sugar_output_name or (f"{args.scene_name}_{run_name}" if args.run_name else args.scene_name)
+    sugar_output_name = args.sugar_output_name or args.scene_name
     log_dir = root / "logs" / args.scene_name / run_name
 
     frame_step = args.frame_step or preset.frame_step
     iterations = args.iterations or preset.iterations
     sequential_overlap = args.sequential_overlap or preset.sequential_overlap
+    sugar_refinement_time = args.sugar_refinement_time or preset.sugar_refinement_time
+    sugar_mode = preset.sugar_mode if args.sugar_quality_mode == "preset" else args.sugar_quality_mode
 
     video_path = resolve_path_under_root(data_root, args.video, "video")
     if not video_path.exists():
@@ -795,8 +851,13 @@ def main() -> int:
             "iterations": iterations,
             "sequential_overlap": sequential_overlap,
             "matcher": args.matcher,
+            "camera_model": args.camera_model,
+            "single_camera": args.single_camera,
             "mask_loss": args.mask_loss,
             "metrics": args.metrics,
+            "eval_3dgs": args.eval_3dgs,
+            "sugar_mode": sugar_mode,
+            "sugar_refinement_time": sugar_refinement_time,
             "skip_sugar": args.skip_sugar,
         },
         "paths": {
@@ -870,12 +931,26 @@ def main() -> int:
                 str(root / "scripts" / "run_colmap_pipeline.py"),
                 "--scene-dir",
                 dataset_dir,
-                "--single-camera",
                 "--matcher",
                 args.matcher,
+                "--camera-model",
+                args.camera_model,
                 "--sequential-overlap",
                 str(sequential_overlap),
             ]
+            if args.single_camera:
+                colmap_cmd.append("--single-camera")
+            append_optional_bool_arg(colmap_cmd, args.use_gpu, "--use-gpu", "--no-use-gpu")
+            append_optional_bool_arg(colmap_cmd, args.use_colmap_masks, "--use-colmap-masks", "--no-use-colmap-masks")
+            append_optional_arg(colmap_cmd, "--sparse-model", args.sparse_model)
+            if args.skip_feature_extraction:
+                colmap_cmd.append("--skip-feature-extraction")
+            if args.skip_matching:
+                colmap_cmd.append("--skip-matching")
+            if args.skip_mapping:
+                colmap_cmd.append("--skip-mapping")
+            if args.skip_undistort:
+                colmap_cmd.append("--skip-undistort")
             run_stage(colmap_cmd, "run_colmap_pipeline", log_dir, manifest)
 
         if not args.skip_3dgs:
@@ -894,14 +969,16 @@ def main() -> int:
                 "--log-path",
                 str(log_dir / "train_3dgs_inner.log"),
             ]
-            if args.metrics:
+            if args.metrics or args.eval_3dgs:
                 train_cmd.append("--eval")
+            if args.metrics:
                 append_passthrough_arg(train_cmd, "--extra-arg", "--test_iterations")
                 append_passthrough_arg(train_cmd, "--extra-arg", str(iterations))
             if args.white_background:
                 train_cmd.append("--white-background")
             if args.mask_loss:
                 train_cmd.append("--mask-loss")
+            append_optional_arg(train_cmd, "--masks-dir", args.masks_dir)
             for extra_arg in args.extra_3dgs_arg:
                 append_passthrough_arg(train_cmd, "--extra-arg", extra_arg)
             train_output = run_stage(train_cmd, "train_3dgs", log_dir, manifest)
@@ -926,14 +1003,28 @@ def main() -> int:
                 "--sugar-output-name",
                 sugar_output_name,
                 "--refinement-time",
-                preset.sugar_refinement_time,
+                sugar_refinement_time,
             ]
-            if preset.sugar_mode == "low":
+            if sugar_mode == "low":
                 sugar_cmd.append("--low-poly")
-            elif preset.sugar_mode == "high":
+            elif sugar_mode == "high":
                 sugar_cmd.append("--high-poly")
             if args.white_background:
                 sugar_cmd.append("--white-background")
+            append_optional_arg(sugar_cmd, "--surface-level", str(args.surface_level) if args.surface_level is not None else None)
+            append_optional_arg(sugar_cmd, "--n-vertices", str(args.n_vertices) if args.n_vertices is not None else None)
+            append_optional_arg(sugar_cmd, "--gaussians-per-triangle", str(args.gaussians_per_triangle) if args.gaussians_per_triangle is not None else None)
+            append_optional_arg(sugar_cmd, "--refinement-iterations", str(args.refinement_iterations) if args.refinement_iterations is not None else None)
+            append_optional_arg(sugar_cmd, "--square-size", str(args.square_size) if args.square_size is not None else None)
+            append_optional_arg(sugar_cmd, "--gpu", str(args.sugar_gpu) if args.sugar_gpu is not None else None)
+            append_optional_arg(sugar_cmd, "--bboxmin", args.bboxmin)
+            append_optional_arg(sugar_cmd, "--bboxmax", args.bboxmax)
+            append_optional_bool_arg(sugar_cmd, args.center_bbox, "--center-bbox", "--no-center-bbox")
+            append_optional_bool_arg(sugar_cmd, args.export_obj, "--export-obj", "--no-export-obj")
+            append_optional_bool_arg(sugar_cmd, args.export_ply, "--export-ply", "--no-export-ply")
+            append_optional_bool_arg(sugar_cmd, args.postprocess_mesh, "--postprocess-mesh", "--no-postprocess-mesh")
+            append_optional_arg(sugar_cmd, "--postprocess-density-threshold", str(args.postprocess_density_threshold) if args.postprocess_density_threshold is not None else None)
+            append_optional_arg(sugar_cmd, "--postprocess-iterations", str(args.postprocess_iterations) if args.postprocess_iterations is not None else None)
             for extra_arg in args.extra_sugar_arg:
                 append_passthrough_arg(sugar_cmd, "--extra-arg", extra_arg)
             if args.metrics:

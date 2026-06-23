@@ -1,0 +1,12 @@
+{
+  "video_path": "videos/tv_controller.mp4",
+  "output_dir": "masks/tv_controller",
+  "object_id": 1,
+  "bbox_xyxy": [
+    249,
+    313,
+    480,
+    1062
+  ],
+  "checkpoint": "sam2.1_hiera_small"
+}
