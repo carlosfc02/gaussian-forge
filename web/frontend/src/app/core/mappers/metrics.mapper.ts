@@ -1,0 +1,4 @@
+import { MetricStageDto, SceneMetricsDto } from '../../shared/dtos/metrics.dto';
+import { MetricStage, SceneMetrics } from '../../shared/models/metrics.model';
+export function mapMetricStageDto(dto: MetricStageDto): MetricStage { return { stage: dto.stage, status: dto.status, startedAt: dto.started_at, finishedAt: dto.finished_at, durationSeconds: dto.duration_seconds, metrics: dto.metrics, parameters: dto.parameters, artifacts: dto.artifacts, sourcePath: dto.source_path }; }
+export function mapSceneMetricsDto(dto: SceneMetricsDto): SceneMetrics { return { sceneName: dto.scene_name, stages: dto.stages.map(mapMetricStageDto), updatedAt: dto.updated_at }; }

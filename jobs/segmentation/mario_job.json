@@ -1,0 +1,12 @@
+{
+  "video_path": "videos/mario.mp4",
+  "output_dir": "masks/mario",
+  "object_id": 1,
+  "bbox_xyxy": [
+    155,
+    400,
+    570,
+    984
+  ],
+  "checkpoint": "sam2.1_hiera_small"
+}

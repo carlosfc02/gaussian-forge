@@ -10,9 +10,10 @@ class PipelinePresetRead(BaseModel):
     iterations: int
     sugar_mode: str
     sugar_refinement_time: str
+    run_sugar: bool
 
 
-PipelineRunMode = Literal["full", "stage"]
+PipelineRunMode = Literal["full", "stage", "custom"]
 PipelineStageName = Literal[
     "select_bbox",
     "segment_video",
@@ -84,6 +85,7 @@ class StartPipelineRunRequest(BaseModel):
     preset: str
     mode: PipelineRunMode = "full"
     stage: PipelineStageName | None = None
+    stages: list[PipelineStageName] | None = None
     options: PipelineAdvancedOptions | None = None
 
 
@@ -94,6 +96,7 @@ class PipelineRunRead(BaseModel):
     status: str
     mode: str = "full"
     stage: str | None = None
+    stages: list[str] | None = None
     options: dict | None = None
     started_at: str | None = None
     finished_at: str | None = None

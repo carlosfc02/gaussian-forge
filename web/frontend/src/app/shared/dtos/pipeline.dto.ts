@@ -1,0 +1,8 @@
+import { PipelineAdvancedOptions, PipelineRunMode, PipelineStageName } from '../models/pipeline.model';
+export type PipelinePresetNameDto = 'fast' | 'balanced' | 'quality';
+export type PipelineRunStatusDto = 'running' | 'success' | 'failed' | 'canceled';
+export interface StartPipelineRunRequestDto { preset: PipelinePresetNameDto; mode?: PipelineRunMode; stage?: PipelineStageName | null; stages?: PipelineStageName[] | null; options?: PipelineAdvancedOptions | null; }
+export interface PipelineRunDto { scene_name: string; run_name: string; preset: PipelinePresetNameDto; status: PipelineRunStatusDto; mode: PipelineRunMode; stage: PipelineStageName | null; stages: PipelineStageName[] | null; options: PipelineAdvancedOptions | null; started_at: string | null; finished_at: string | null; current_stage: string | null; manifest_path: string | null; error: string | null; }
+export interface PipelineStageDto { stage: string; status: string | null; started_at: string | null; finished_at: string | null; log_path: string | null; }
+export interface PipelineLogDto { scene_name: string; run_name: string; stage: string | null; stages: PipelineStageDto[]; content: string; truncated: boolean; updated_at: string | null; }
+export interface PipelinePresetDto { name: PipelinePresetNameDto; frame_step: number; sequential_overlap: number; iterations: number; sugar_mode: string; sugar_refinement_time: string; run_sugar: boolean; }

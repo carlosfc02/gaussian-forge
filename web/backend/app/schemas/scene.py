@@ -1,4 +1,6 @@
 from enum import Enum
+from typing import Any
+
 from pydantic import BaseModel
 
 from app.schemas.pipeline import PipelineRunRead
@@ -28,3 +30,29 @@ class SceneRead(BaseModel):
     gs_path: str | None = None
     sugar_output_path: str | None = None
     pipeline_run: PipelineRunRead | None = None
+
+
+class MetricStageRead(BaseModel):
+    stage: str
+    status: str | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    duration_seconds: float | None = None
+    metrics: dict[str, Any] | list[Any] | None = None
+    parameters: dict[str, Any] | None = None
+    artifacts: dict[str, Any] | None = None
+    source_path: str
+
+
+class SceneMetricsRead(BaseModel):
+    scene_name: str
+    stages: list[MetricStageRead]
+    updated_at: str | None = None
+
+
+class ViewerLaunchRead(BaseModel):
+    scene_name: str
+    viewer: str
+    status: str
+    message: str
+    command: list[str]

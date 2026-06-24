@@ -10,8 +10,9 @@ class PipelinePreset:
     iterations: int
     sugar_mode: str
     sugar_refinement_time: str
+    run_sugar: bool
 
-    def as_dict(self) -> dict[str, int | str]:
+    def as_dict(self) -> dict[str, bool | int | str]:
         return asdict(self)
 
 
@@ -22,6 +23,7 @@ PRESETS = {
         iterations=1000,
         sugar_mode="low",
         sugar_refinement_time="short",
+        run_sugar=False,
     ),
     "balanced": PipelinePreset(
         frame_step=2,
@@ -29,6 +31,7 @@ PRESETS = {
         iterations=7000,
         sugar_mode="default",
         sugar_refinement_time="medium",
+        run_sugar=True,
     ),
     "quality": PipelinePreset(
         frame_step=1,
@@ -36,5 +39,6 @@ PRESETS = {
         iterations=30000,
         sugar_mode="high",
         sugar_refinement_time="long",
+        run_sugar=True,
     ),
 }

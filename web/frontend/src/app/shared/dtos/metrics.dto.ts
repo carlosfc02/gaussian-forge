@@ -1,0 +1,2 @@
+export interface MetricStageDto { stage: string; status: string | null; started_at: string | null; finished_at: string | null; duration_seconds: number | null; metrics: Record<string, unknown> | unknown[] | null; parameters: Record<string, unknown> | null; artifacts: Record<string, unknown> | null; source_path: string; }
+export interface SceneMetricsDto { scene_name: string; stages: MetricStageDto[]; updated_at: string | null; }

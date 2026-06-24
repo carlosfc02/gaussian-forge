@@ -42,6 +42,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-colmap", action="store_true", help="Reuse existing COLMAP/3DGS source dataset.")
     parser.add_argument("--skip-3dgs", action="store_true", help="Reuse existing 3DGS model.")
     parser.add_argument("--skip-sugar", action="store_true", help="Skip SuGaR training; with --metrics, reuse an existing SuGaR output for metrics.")
+    parser.add_argument("--run-sugar", action="store_true", help="Run SuGaR even when the selected preset skips it by default.")
     parser.add_argument(
         "--delegate-docker-to-wsl",
         action="store_true",
@@ -279,6 +280,8 @@ def build_wsl_continuation_command(args: argparse.Namespace, job_path: Path, run
         command.append("--skip-3dgs")
     if args.skip_sugar:
         command.append("--skip-sugar")
+    if args.run_sugar:
+        command.append("--run-sugar")
 
     append_optional_arg(command, "--mask-output-dir", args.mask_output_dir)
     append_optional_arg(command, "--dataset-dir", args.dataset_dir)
@@ -821,6 +824,8 @@ def main() -> int:
     sequential_overlap = args.sequential_overlap or preset.sequential_overlap
     sugar_refinement_time = args.sugar_refinement_time or preset.sugar_refinement_time
     sugar_mode = preset.sugar_mode if args.sugar_quality_mode == "preset" else args.sugar_quality_mode
+    skip_sugar = args.skip_sugar or (not preset.run_sugar and not args.run_sugar)
+    args.skip_sugar = skip_sugar
 
     video_path = resolve_path_under_root(data_root, args.video, "video")
     if not video_path.exists():
@@ -858,7 +863,7 @@ def main() -> int:
             "eval_3dgs": args.eval_3dgs,
             "sugar_mode": sugar_mode,
             "sugar_refinement_time": sugar_refinement_time,
-            "skip_sugar": args.skip_sugar,
+            "skip_sugar": skip_sugar,
         },
         "paths": {
             "video": str(video_path),
@@ -988,7 +993,7 @@ def main() -> int:
                 manifest["latest_train_3dgs_manifest"] = latest_train_manifest
             write_json(log_dir / "full_pipeline_manifest.json", manifest)
 
-        if not args.skip_sugar:
+        if not skip_sugar:
             sugar_cmd = [
                 sys.executable,
                 str(root / "scripts" / "train_sugar.py"),

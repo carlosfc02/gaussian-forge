@@ -1,0 +1,2 @@
+export interface MetricStage { stage: string; status: string | null; startedAt: string | null; finishedAt: string | null; durationSeconds: number | null; metrics: Record<string, unknown> | unknown[] | null; parameters: Record<string, unknown> | null; artifacts: Record<string, unknown> | null; sourcePath: string; }
+export interface SceneMetrics { sceneName: string; stages: MetricStage[]; updatedAt: string | null; }

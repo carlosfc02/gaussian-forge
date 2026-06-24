@@ -38,6 +38,24 @@ FAILED_STATUS = "failed"
 CANCELED_STATUS = "canceled"
 LOG_TAIL_CHARS = 60000
 
+PIPELINE_STAGE_ORDER = [
+    "select_bbox",
+    "segment_video",
+    "prepare_3dgs_dataset",
+    "run_colmap_pipeline",
+    "train_3dgs",
+    "train_sugar",
+    "sugar_metrics",
+]
+PIPELINE_STAGE_SKIP_FLAGS = {
+    "select_bbox": "--skip-bbox",
+    "segment_video": "--skip-segmentation",
+    "prepare_3dgs_dataset": "--skip-prepare",
+    "run_colmap_pipeline": "--skip-colmap",
+    "train_3dgs": "--skip-3dgs",
+    "train_sugar": "--skip-sugar",
+}
+
 PIPELINE_STAGE_SKIPS: dict[str, list[str]] = {
     "select_bbox": ["--skip-segmentation", "--skip-prepare", "--skip-colmap", "--skip-3dgs", "--skip-sugar"],
     "segment_video": ["--skip-bbox", "--skip-prepare", "--skip-colmap", "--skip-3dgs", "--skip-sugar"],
@@ -150,6 +168,7 @@ def build_pipeline_run_read(run_dir: Path) -> PipelineRunRead | None:
         status=run_status,
         mode=str(metadata.get("mode") or "full"),
         stage=str(metadata.get("stage")) if metadata.get("stage") else None,
+        stages=metadata.get("stages") if isinstance(metadata.get("stages"), list) else None,
         options=metadata.get("options") if isinstance(metadata.get("options"), dict) else None,
         started_at=manifest.get("started_at") or metadata.get("started_at"),
         finished_at=manifest.get("finished_at") or metadata.get("finished_at"),
@@ -192,10 +211,20 @@ def get_pipeline_scene_status(scene_name: str) -> SceneStatus | None:
         return SceneStatus.ERROR
     if run.status == CANCELED_STATUS:
         return SceneStatus.CANCELED
+    stage = run.current_stage
     if run.status == SUCCESS_STATUS:
+        if stage == "select_bbox":
+            return SceneStatus.BBOX_SELECTED
+        if stage == "segment_video":
+            return SceneStatus.MASKS_READY
+        if stage == "prepare_3dgs_dataset":
+            return SceneStatus.DATASET_READY
+        if stage == "run_colmap_pipeline":
+            return SceneStatus.COLMAP_READY
+        if stage == "train_3dgs":
+            return SceneStatus.THREE_DGS_READY
         return SceneStatus.SUGAR_READY
 
-    stage = run.current_stage
     if stage == "select_bbox" or stage is None:
         return SceneStatus.BBOX_SELECTED
     if stage == "segment_video":
@@ -244,7 +273,51 @@ def ensure_relative_under_root(value: str, root: Path, field: str, base: Path, m
     return resolved
 
 
+def ordered_pipeline_stages(stages: list[str]) -> list[str]:
+    unknown = [stage for stage in stages if stage not in PIPELINE_STAGE_ORDER]
+    if unknown:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unsupported pipeline stage. Allowed: {PIPELINE_STAGE_ORDER}",
+        )
+
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for stage in stages:
+        if stage in seen and stage not in duplicates:
+            duplicates.append(stage)
+        seen.add(stage)
+    if duplicates:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Duplicate pipeline stages are not allowed: {duplicates}",
+        )
+
+    selected = set(stages)
+    return [stage for stage in PIPELINE_STAGE_ORDER if stage in selected]
+
+
+def selected_pipeline_stages(request: StartPipelineRunRequest) -> list[str] | None:
+    if request.mode == "stage":
+        return [request.stage] if request.stage else None
+    if request.mode == "custom":
+        raw_stages = list(request.stages or [])
+        if not raw_stages:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="stages is required when mode is 'custom'.",
+            )
+        return ordered_pipeline_stages([str(stage) for stage in raw_stages])
+    return None
+
+
+def custom_stages_need_existing_job(stages: list[str]) -> bool:
+    if "select_bbox" in stages:
+        return False
+    return any(PIPELINE_STAGE_ORDER.index(stage) > 0 for stage in stages)
+
 def validate_advanced_options(scene_name: str, request: StartPipelineRunRequest, options: dict[str, Any]) -> None:
+    selected_stages = selected_pipeline_stages(request)
     if request.mode == "stage" and not request.stage:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -274,7 +347,7 @@ def validate_advanced_options(scene_name: str, request: StartPipelineRunRequest,
     if options.get("jobPath"):
         ensure_relative_under_root(str(options["jobPath"]), PROJECT_ROOT / "jobs", "jobPath", PROJECT_ROOT)
 
-    if request.mode == "stage" and request.stage != "select_bbox":
+    if selected_stages and custom_stages_need_existing_job(selected_stages):
         job_path = str(options.get("jobPath") or f"jobs/segmentation/{scene_name}_job.json")
         ensure_relative_under_root(job_path, PROJECT_ROOT / "jobs", "jobPath", PROJECT_ROOT, must_exist=True)
 
@@ -300,6 +373,34 @@ def append_optional_bool(command: list[str], options: dict[str, Any], field: str
     command.append(true_flag if options[field] else false_flag)
 
 
+def append_flag_once(command: list[str], flag: str) -> None:
+    if flag not in command:
+        command.append(flag)
+
+
+def append_stage_selection_flags(command: list[str], request: StartPipelineRunRequest) -> None:
+    if request.mode == "stage" and request.stage:
+        command.extend(PIPELINE_STAGE_SKIPS[request.stage])
+        if request.stage == "train_sugar":
+            append_flag_once(command, "--run-sugar")
+        if request.stage == "sugar_metrics":
+            append_flag_once(command, "--metrics")
+        return
+
+    if request.mode != "custom":
+        return
+
+    selected_stages = selected_pipeline_stages(request) or []
+    selected = set(selected_stages)
+    for stage, skip_flag in PIPELINE_STAGE_SKIP_FLAGS.items():
+        if stage not in selected:
+            append_flag_once(command, skip_flag)
+
+    if "train_sugar" in selected:
+        append_flag_once(command, "--run-sugar")
+    if "sugar_metrics" in selected:
+        append_flag_once(command, "--metrics")
+
 def build_pipeline_command(
     scene_name: str,
     video_arg: str,
@@ -320,10 +421,7 @@ def build_pipeline_command(
         run_name,
     ]
 
-    if request.mode == "stage" and request.stage:
-        command.extend(PIPELINE_STAGE_SKIPS[request.stage])
-        if request.stage == "sugar_metrics":
-            command.append("--metrics")
+    append_stage_selection_flags(command, request)
 
     for field, flag in (
         ("force", "--force"),
@@ -388,6 +486,7 @@ def start_pipeline_run(scene_name: str, video_path: Path, request: StartPipeline
     request.preset = validate_pipeline_preset(request.preset)
     options = model_to_dict(request.options)
     validate_advanced_options(scene_name, request, options)
+    request_stages = selected_pipeline_stages(request)
     ensure_no_active_pipeline(scene_name)
 
     try:
@@ -409,6 +508,7 @@ def start_pipeline_run(scene_name: str, video_path: Path, request: StartPipeline
         "preset": request.preset,
         "mode": request.mode,
         "stage": request.stage,
+        "stages": request_stages,
         "options": options,
         "status": RUNNING_STATUS,
         "started_at": utc_now_iso(),

@@ -2,13 +2,16 @@ from fastapi import APIRouter, File, Form, UploadFile, status
 from fastapi.responses import FileResponse
 
 from app.schemas.pipeline import PipelineLogRead, PipelineRunRead, StartPipelineRunRequest
-from app.schemas.scene import SceneRead
+from app.schemas.scene import SceneMetricsRead, SceneRead, ViewerLaunchRead
 from app.services.pipeline_service import cancel_latest_pipeline_run, get_latest_pipeline_logs, get_latest_pipeline_run, start_pipeline_run
 from app.services.scene_service import (
     create_scene_from_upload,
     get_scene,
+    get_scene_metrics,
     get_scene_thumbnail,
     get_scene_video,
+    launch_3dgs_viewer,
+    launch_sugar_viewer,
     list_scenes,
 )
 
@@ -29,6 +32,18 @@ def get_scene_video_by_name(scene_name: str):
 @router.get("/{scene_name}/thumbnail")
 def get_scene_thumbnail_by_name(scene_name: str):
     return FileResponse(path=get_scene_thumbnail(scene_name), media_type="image/jpeg")
+
+@router.get("/{scene_name}/metrics", response_model=SceneMetricsRead)
+def get_scene_metrics_by_name(scene_name: str):
+    return get_scene_metrics(scene_name)
+
+@router.post("/{scene_name}/viewers/3dgs", response_model=ViewerLaunchRead)
+def launch_scene_3dgs_viewer(scene_name: str):
+    return launch_3dgs_viewer(scene_name)
+
+@router.post("/{scene_name}/viewers/sugar", response_model=ViewerLaunchRead)
+def launch_scene_sugar_viewer(scene_name: str):
+    return launch_sugar_viewer(scene_name)
 
 @router.get("/{scene_name}/pipeline-runs/latest", response_model=PipelineRunRead | None)
 def get_latest_scene_pipeline_run(scene_name: str):

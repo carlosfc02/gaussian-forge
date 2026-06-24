@@ -1,0 +1,3 @@
+<div class="scene-detail-card__header"><h2>Pipeline status</h2><span class="scene-detail-card__meta">live refresh every 5s</span></div>
+<strong class="scene-detail-progress">{{ meta?.progress }}%</strong><p class="scene-detail-stage">{{ meta?.stage }}</p>
+<ngb-progressbar [value]="meta?.progress ?? 0" [max]="100" [showValue]="false" height="0.6rem" type="info" />

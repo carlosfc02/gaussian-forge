@@ -1,0 +1,1 @@
+export interface ViewerLaunchDto { scene_name: string; viewer: '3dgs' | 'sugar' | string; status: string; message: string; command: string[]; }

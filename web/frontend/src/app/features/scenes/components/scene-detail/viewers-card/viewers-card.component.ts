@@ -1,0 +1,4 @@
+import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Scene } from '../../../../../shared/models/scene-data.model';
+@Component({ selector: 'app-viewers-card', standalone: true, templateUrl: './viewers-card.component.html', host: { class: 'scene-detail-card scene-detail-card--viewers' } })
+export class ViewersCardComponent { @Input({ required: true }) scene!: Scene; @Input() isLaunching3dgs = false; @Input() isLaunchingSugar = false; @Input() actionError: string | null = null; @Input() actionMessage: string | null = null; @Output() launch3dgs = new EventEmitter<void>(); @Output() launchSugar = new EventEmitter<void>(); }

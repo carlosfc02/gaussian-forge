@@ -1,0 +1,8 @@
+<div class="scene-detail-card__header"><div><h2>View results</h2><span class="scene-detail-card__meta">local viewers</span></div></div>
+<div class="scene-detail-viewer-actions">
+<button type="button" class="btn btn-outline-light scene-detail-viewer-button" [disabled]="!scene.gsPath || isLaunching3dgs" (click)="launch3dgs.emit()">@if (isLaunching3dgs) {<span class="spinner-border spinner-border-sm"></span> Opening 3DGS...} @else {<i class="bi bi-box-arrow-up-right"></i> Open 3DGS viewer}</button>
+<button type="button" class="btn btn-outline-light scene-detail-viewer-button" [disabled]="!scene.sugarOutputPath || isLaunchingSugar" (click)="launchSugar.emit()">@if (isLaunchingSugar) {<span class="spinner-border spinner-border-sm"></span> Opening SuGaR...} @else {<i class="bi bi-gem"></i> Open SuGaR viewer}</button>
+</div>
+@if (!scene.gsPath && !scene.sugarOutputPath) {<p class="scene-detail-run-empty">Train 3DGS or SuGaR before opening a local viewer.</p>}
+@if (actionError) {<div class="scene-detail-run-alert scene-detail-run-alert--danger"><i class="bi bi-exclamation-triangle"></i><span>{{ actionError }}</span></div>}
+@if (actionMessage) {<div class="scene-detail-run-alert scene-detail-run-alert--success"><i class="bi bi-check-circle"></i><span>{{ actionMessage }}</span></div>}
