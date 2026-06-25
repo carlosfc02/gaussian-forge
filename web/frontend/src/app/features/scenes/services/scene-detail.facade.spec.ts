@@ -1,4 +1,4 @@
-import { discardPeriodicTasks, fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { BehaviorSubject, of } from 'rxjs';
 import { PipelineService } from '../../../core/services/pipeline.service';
@@ -15,6 +15,7 @@ describe('SceneDetailFacade', () => {
   let sceneService: any; let pipelineService: any; let metricsService: any; let viewerService: any;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     sceneService = { getSceneByName: vi.fn(() => of(scene)) };
     pipelineService = { getPresets: vi.fn(() => of([])), getLatestLogs: vi.fn(() => of(null)), start: vi.fn(() => of(run)), cancel: vi.fn(() => of({ ...run, status: 'canceled' })) };
     metricsService = { get: vi.fn(() => of({ sceneName: 'scene', stages: [], updatedAt: null })) };
@@ -22,7 +23,37 @@ describe('SceneDetailFacade', () => {
     TestBed.configureTestingModule({ providers: [SceneDetailFacade, { provide: ActivatedRoute, useValue: { paramMap: params.asObservable() } }, { provide: SceneService, useValue: sceneService }, { provide: PipelineService, useValue: pipelineService }, { provide: SceneMetricsService, useValue: metricsService }, { provide: ViewerService, useValue: viewerService }] });
   });
 
-  it('polls scene, metrics and logs at their configured intervals', fakeAsync(() => { const facade = TestBed.inject(SceneDetailFacade); tick(0); expect(facade.scene()?.name).toBe('scene'); expect(sceneService.getSceneByName).toHaveBeenCalledTimes(1); expect(metricsService.get).toHaveBeenCalledTimes(1); expect(pipelineService.getLatestLogs).toHaveBeenCalledTimes(1); tick(2000); expect(pipelineService.getLatestLogs).toHaveBeenCalledTimes(2); tick(3000); expect(sceneService.getSceneByName).toHaveBeenCalledTimes(2); expect(metricsService.get).toHaveBeenCalledTimes(2); discardPeriodicTasks(); }));
-  it('refreshes scene and logs after starting a run', fakeAsync(() => { const facade = TestBed.inject(SceneDetailFacade); tick(0); facade.startSimplePipeline(); tick(0); expect(pipelineService.start).toHaveBeenCalledWith('scene', 'balanced'); expect(sceneService.getSceneByName).toHaveBeenCalledTimes(2); expect(pipelineService.getLatestLogs).toHaveBeenCalledTimes(3); expect(facade.pipelineActionMessage()).toContain('run'); discardPeriodicTasks(); }));
-  it('requests a selected log stage immediately', fakeAsync(() => { const facade = TestBed.inject(SceneDetailFacade); tick(0); facade.setSelectedLogStage('train_3dgs'); tick(0); expect(pipelineService.getLatestLogs).toHaveBeenLastCalledWith('scene', 'train_3dgs'); discardPeriodicTasks(); }));
+  afterEach(() => vi.useRealTimers());
+
+  it('polls scene, metrics and logs at their configured intervals', async () => {
+    const facade = TestBed.inject(SceneDetailFacade);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(facade.scene()?.name).toBe('scene');
+    expect(sceneService.getSceneByName).toHaveBeenCalledTimes(1);
+    expect(metricsService.get).toHaveBeenCalledTimes(1);
+    expect(pipelineService.getLatestLogs).toHaveBeenCalledTimes(1);
+    expect(pipelineService.getLatestLogs).toHaveBeenLastCalledWith('scene', null);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(pipelineService.getLatestLogs).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(sceneService.getSceneByName).toHaveBeenCalledTimes(2);
+    expect(metricsService.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes scene and logs after starting a run', async () => {
+    const facade = TestBed.inject(SceneDetailFacade);
+    await vi.advanceTimersByTimeAsync(0);
+    facade.startSimplePipeline();
+    expect(pipelineService.start).toHaveBeenCalledWith('scene', 'balanced');
+    expect(sceneService.getSceneByName).toHaveBeenCalledTimes(2);
+    expect(pipelineService.getLatestLogs).toHaveBeenCalledTimes(3);
+    expect(facade.pipelineActionMessage()).toContain('run');
+  });
+
+  it('requests a selected log stage immediately', async () => {
+    const facade = TestBed.inject(SceneDetailFacade);
+    await vi.advanceTimersByTimeAsync(0);
+    facade.setSelectedLogStage('train_3dgs');
+    expect(pipelineService.getLatestLogs).toHaveBeenLastCalledWith('scene', 'train_3dgs');
+  });
 });

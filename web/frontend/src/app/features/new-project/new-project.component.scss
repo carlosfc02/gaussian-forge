@@ -3,9 +3,7 @@
     padding: 2rem;
     color: var(--gf-text);
   
-    background:
-      radial-gradient(circle at 75% 10%, rgba(17, 216, 246, 0.08), transparent 32%),
-      var(--gf-bg);
+    background: var(--gf-page-background);
   }
   
   .new-project-header {

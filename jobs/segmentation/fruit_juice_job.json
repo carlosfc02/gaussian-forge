@@ -1,0 +1,12 @@
+{
+  "video_path": "videos/fruit_juice.mp4",
+  "output_dir": "masks/fruit_juice",
+  "object_id": 1,
+  "bbox_xyxy": [
+    307,
+    772,
+    622,
+    1178
+  ],
+  "checkpoint": "sam2.1_hiera_small"
+}

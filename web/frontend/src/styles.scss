@@ -16,6 +16,10 @@ body {
 :root {
   color-scheme: dark;
   --gf-bg: #0d0f13;
+  --gf-page-background-image:
+    radial-gradient(circle at 82% 10%, rgba(17, 216, 246, 0.08), transparent 32%),
+    radial-gradient(circle at 20% 78%, rgba(17, 216, 246, 0.05), transparent 24%);
+  --gf-page-background: var(--gf-page-background-image), var(--gf-bg);
   --gf-surface: #171b21;
   --gf-surface-strong: #1e232b;
   --gf-surface-soft: #222832;

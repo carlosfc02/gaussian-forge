@@ -1,0 +1,1 @@
+<ol class="docs-workflow">@for (step of steps; track step.number) {<li><span>{{ step.number }}</span><div><h3>{{ step.title }}</h3><p>{{ step.description }}</p>@if (step.details?.length) {<ul>@for (detail of step.details; track detail) {<li>{{ detail }}</li>}</ul>}</div></li>}</ol>

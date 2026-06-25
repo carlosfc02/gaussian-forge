@@ -1,0 +1,4 @@
+.docs-section { display: grid; gap: 1.25rem; scroll-margin-top: 1.5rem; padding: 1.35rem; border: 1px solid var(--gf-border); border-radius: 1rem; background: var(--gf-surface); }
+.docs-section header span { color: var(--gf-accent); font-family: var(--gf-mono); font-size: .68rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.docs-section h2 { margin: .35rem 0 0; font-size: 1.35rem; }
+.docs-section header p { max-width: 52rem; margin: .55rem 0 0; color: var(--gf-text-muted); line-height: 1.6; }

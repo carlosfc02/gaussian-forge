@@ -1,10 +1,15 @@
 FROM nvidia/cuda:12.4.1-devel-ubuntu22.04
 
+ARG APP_UID=1000
+ARG APP_GID=1000
+
 ENV DEBIAN_FRONTEND=noninteractive \
     QT_QPA_PLATFORM=offscreen \
     CC=/usr/bin/gcc-10 \
     CXX=/usr/bin/g++-10 \
-    CUDAHOSTCXX=/usr/bin/g++-10
+    CUDAHOSTCXX=/usr/bin/g++-10 \
+    HOME=/home/appuser \
+    XDG_CACHE_HOME=/home/appuser/.cache
 
 ARG COLMAP_VERSION=4.0.3
 ARG CMAKE_CUDA_ARCHITECTURES=89
@@ -55,8 +60,11 @@ RUN cmake -S . -B build -GNinja \
     && cmake --install build \
     && rm -rf /opt/colmap/build /opt/colmap/.git
 
+RUN groupadd --gid "${APP_GID}" appuser \
+    && useradd --uid "${APP_UID}" --gid "${APP_GID}" --create-home --shell /bin/bash appuser \
+    && mkdir -p /data /logs "${XDG_CACHE_HOME}" \
+    && chown -R "${APP_UID}:${APP_GID}" /data /logs /home/appuser
+
+USER appuser
+
 CMD ["colmap", "-h"]
-
-
-
-

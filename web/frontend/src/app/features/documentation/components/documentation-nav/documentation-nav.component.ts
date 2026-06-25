@@ -1,0 +1,4 @@
+import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { DocumentationSection } from '../../../../shared/models/documentation.model';
+@Component({ selector: 'app-documentation-nav', standalone: true, templateUrl: './documentation-nav.component.html', styleUrl: './documentation-nav.component.scss' })
+export class DocumentationNavComponent { @Input() sections: DocumentationSection[] = []; @Input() activeSection = ''; @Output() navigate = new EventEmitter<string>(); basic(): DocumentationSection[] { return this.sections.filter((item) => item.category === 'basic'); } advanced(): DocumentationSection[] { return this.sections.filter((item) => item.category === 'advanced'); } }

@@ -1,9 +1,13 @@
-﻿services:
+services:
   sam2-seg:
     build:
       context: .
       dockerfile: docker/sam2/Dockerfile
+      args:
+        APP_UID: ${HOST_UID:-1000}
+        APP_GID: ${HOST_GID:-1000}
     image: tfg/sam2-seg:latest
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     working_dir: /app
     environment:
       PYTHONUNBUFFERED: "1"
@@ -29,7 +33,11 @@
     build:
       context: .
       dockerfile: docker/colmap/Dockerfile
+      args:
+        APP_UID: ${HOST_UID:-1000}
+        APP_GID: ${HOST_GID:-1000}
     image: tfg/colmap:latest
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     environment:
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics
@@ -46,7 +54,11 @@
     build:
       context: .
       dockerfile: docker/gaussian-splatting/Dockerfile
+      args:
+        APP_UID: ${HOST_UID:-1000}
+        APP_GID: ${HOST_GID:-1000}
     image: tfg/gaussian-splatting:latest
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     working_dir: /opt/gaussian-splatting
     environment:
       PYTHONUNBUFFERED: "1"
@@ -64,7 +76,11 @@
     build:
       context: .
       dockerfile: docker/sugar/Dockerfile
+      args:
+        APP_UID: ${HOST_UID:-1000}
+        APP_GID: ${HOST_GID:-1000}
     image: tfg/sugar:latest
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     working_dir: /opt/SuGaR
     environment:
       PYTHONUNBUFFERED: "1"

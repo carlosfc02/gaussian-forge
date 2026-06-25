@@ -16,6 +16,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'documentation',
+    loadComponent: () =>
+      import('./features/documentation/documentation.component').then(
+        (module) => module.DocumentationComponent,
+      ),
+  },
+  {
     path: 'scenes/:sceneName',
     loadComponent: () =>
       import('./features/scenes/scene-detail.component').then(

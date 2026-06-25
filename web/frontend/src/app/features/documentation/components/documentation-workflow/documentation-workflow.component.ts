@@ -1,0 +1,2 @@
+import { Component, Input } from '@angular/core'; import { DocumentationStep } from '../../../../shared/models/documentation.model';
+@Component({ selector: 'app-documentation-workflow', standalone: true, templateUrl: './documentation-workflow.component.html', styleUrl: './documentation-workflow.component.scss' }) export class DocumentationWorkflowComponent { @Input() steps: DocumentationStep[] = []; }

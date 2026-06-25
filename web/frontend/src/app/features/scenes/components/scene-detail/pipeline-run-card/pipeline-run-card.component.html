@@ -1,10 +1,52 @@
-<div class="scene-detail-card__header"><h2>Run full pipeline</h2><span class="scene-detail-card__meta">{{ run?.status ?? 'ready' }}</span></div>
-<label class="scene-detail-run-control" for="pipelinePreset"><span>Preset</span><select id="pipelinePreset" class="scene-detail-select" [ngModel]="selectedPreset" (ngModelChange)="selectedPresetChange.emit($event)" [disabled]="isRunning || isStarting">@for (preset of presets; track preset.name) {<option [value]="preset.name">{{ presetLabel(preset.name) }} - {{ presetSummary(preset) }}</option>}</select></label>
+<div class="scene-detail-card__header">
+  <h2>Run full pipeline</h2>
+  <span class="scene-detail-card__meta">{{ run?.status ?? 'ready' }}</span>
+</div>
+<label class="scene-detail-run-control" for="pipelinePreset"><span>Preset</span>
+  <select id="pipelinePreset" class="scene-detail-select bg-dark text-light" [ngModel]="selectedPreset" 
+  (ngModelChange)="selectedPresetChange.emit($event)" [disabled]="isRunning || isStarting">@for (preset of presets; track preset.name) {
+    <option [value]="preset.name">{{ presetLabel(preset.name) }} - {{ presetSummary(preset) }}</option>}
+  </select>
+</label>
 @if (run) {
-  <dl class="scene-detail-run-meta"><div><dt>Run</dt><dd>{{ run.runName }}</dd></div><div><dt>Preset</dt><dd>{{ presetLabel(run.preset) }}</dd></div><div><dt>Mode</dt><dd>{{ run.mode }}{{ run.stage ? ' / ' + stageLabel(run.stage) : '' }}</dd></div><div><dt>Stage</dt><dd>{{ run.currentStage ?? 'Waiting to start' }}</dd></div></dl>
-  @if (run.error) {<div class="scene-detail-run-alert scene-detail-run-alert--danger"><i class="bi bi-exclamation-triangle"></i><span>{{ run.error }}</span></div>}
-} @else {<p class="scene-detail-run-empty">Choose a preset and launch the existing full pipeline script for this scene.</p>}
-@if (actionError) {<div class="scene-detail-run-alert scene-detail-run-alert--danger"><i class="bi bi-exclamation-triangle"></i><span>{{ actionError }}</span></div>}
-@if (actionMessage) {<div class="scene-detail-run-alert scene-detail-run-alert--success"><i class="bi bi-check-circle"></i><span>{{ actionMessage }}</span></div>}
-<button type="button" class="btn btn-primary scene-detail-run-button" [disabled]="!canRun" (click)="runPipeline.emit()">@if (isStarting) {<span class="spinner-border spinner-border-sm"></span> Starting...} @else if (isRunning) {<i class="bi bi-activity"></i> Pipeline running} @else {<i class="bi bi-play-fill"></i> Run pipeline}</button>
-@if (isRunning) {<button type="button" class="btn btn-outline-light scene-detail-cancel-button" [disabled]="isCanceling" (click)="cancelPipeline.emit()">@if (isCanceling) {<span class="spinner-border spinner-border-sm"></span> Canceling...} @else {<i class="bi bi-stop-fill"></i> Cancel pipeline}</button>}
+  <dl class="scene-detail-run-meta">
+    <div>
+      <dt>Run</dt><dd>{{ run.runName }}</dd>
+    </div>
+    <div><dt>Preset</dt><dd>{{ presetLabel(run.preset) }}</dd>
+    </div>
+    <div><dt>Mode</dt><dd>{{ run.mode }}{{ run.stage ? ' / ' + stageLabel(run.stage) : '' }}</dd>
+    </div>
+    <div><dt>Stage</dt><dd>{{ run.currentStage ?? 'Waiting to start' }}</dd>
+    </div>
+  </dl>
+  @if (run.error) {
+    <div class="scene-detail-run-alert scene-detail-run-alert--danger">
+      <i class="bi bi-exclamation-triangle"></i><span>{{ run.error }}</span>
+    </div>}
+  } @else {
+    <p class="scene-detail-run-empty">Choose a preset and launch the existing full pipeline script for this scene.</p>}
+    @if (actionError) {
+      <div class="scene-detail-run-alert scene-detail-run-alert--danger">
+        <i class="bi bi-exclamation-triangle"></i><span>{{ actionError }}</span>
+      </div>}
+    @if (actionMessage) {
+      <div class="scene-detail-run-alert scene-detail-run-alert--success">
+        <i class="bi bi-check-circle"></i><span>{{ actionMessage }}</span>
+      </div>
+    }
+    <button type="button" class="btn btn-primary scene-detail-run-button" [disabled]="!canRun" (click)="runPipeline.emit()">@if (isStarting) {
+      <span class="spinner-border spinner-border-sm"></span> Starting...
+      } @else if (isRunning) {
+        <i class="bi bi-activity"></i> Pipeline running
+      } @else {
+        <i class="bi bi-play-fill"></i> Run pipeline}
+    </button>
+@if (isRunning) {
+  <button type="button" class="btn btn-outline-light scene-detail-cancel-button" [disabled]="isCanceling" (click)="cancelPipeline.emit()">
+    @if (isCanceling) {
+      <span class="spinner-border spinner-border-sm"></span> Canceling...
+    } @else {
+      <i class="bi bi-stop-fill"></i> Cancel pipeline}
+    </button>
+  }

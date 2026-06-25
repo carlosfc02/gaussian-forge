@@ -1,0 +1,2 @@
+import { Component, Input } from '@angular/core'; import { DocumentationCallout } from '../../../../shared/models/documentation.model';
+@Component({ selector: 'app-documentation-callout', standalone: true, templateUrl: './documentation-callout.component.html', styleUrl: './documentation-callout.component.scss' }) export class DocumentationCalloutComponent { @Input({ required: true }) callout!: DocumentationCallout; }

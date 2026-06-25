@@ -63,7 +63,7 @@ export class NewProjectComponent {
             .subscribe({
                 next: (scene) => {
                     console.log("Scene created", scene);
-                    this.router.navigate(['/dashboard']);
+                    this.router.navigate(['/scenes', scene.name]);
                 },
                 error: (error) => {
                     console.error('Error creating scene:', error);

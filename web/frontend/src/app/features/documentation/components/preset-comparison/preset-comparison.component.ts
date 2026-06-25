@@ -1,0 +1,2 @@
+import { Component, Input } from '@angular/core'; import { PipelinePresetDefinition } from '../../../../shared/models/documentation.model';
+@Component({ selector: 'app-preset-comparison', standalone: true, templateUrl: './preset-comparison.component.html', styleUrl: './preset-comparison.component.scss' }) export class PresetComparisonComponent { @Input() presets: PipelinePresetDefinition[] = []; }

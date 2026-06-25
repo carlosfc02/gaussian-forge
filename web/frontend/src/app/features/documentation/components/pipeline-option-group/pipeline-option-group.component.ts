@@ -1,0 +1,3 @@
+import { Component, Input } from '@angular/core'; import { PipelineOptionDefinition, PipelineOptionGroupDefinition } from '../../../../shared/models/documentation.model';
+@Component({ selector: 'app-pipeline-option-group', standalone: true, templateUrl: './pipeline-option-group.component.html', styleUrl: './pipeline-option-group.component.scss' })
+export class PipelineOptionGroupComponent { @Input({ required: true }) group!: PipelineOptionGroupDefinition; @Input() options: PipelineOptionDefinition[] = []; formatDefault(option: PipelineOptionDefinition): string { if (option.defaultValue === 'preset-dependent') return 'Preset dependent'; if (option.defaultValue === null || option.defaultValue === '') return 'Automatic / empty'; return String(option.defaultValue); } }

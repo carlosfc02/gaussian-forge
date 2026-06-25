@@ -168,6 +168,40 @@ docker compose run --rm sam2-seg python /app/scripts/segment_video.py --job /job
 
 The output masks and `manifest.json` will be written under `data/masks/...`.
 
+## Evaluate SAM 2 masks against ground truth
+
+Store reference masks with numeric frame names under:
+
+```text
+data/GT/<scene_name>/masks_gt/000001.png
+```
+
+Predicted SAM 2 masks are read from `data/masks/<scene_name>/`. Run:
+
+```bash
+python scripts/evaluate_segmentation_masks.py --scene-name pillow
+```
+
+The script matches masks by frame index, automatically detects a small GT numbering offset, and writes timestamped reports plus `latest.json` to:
+
+```text
+data/metrics/segmentation/<scene_name>/
+```
+
+Each report contains per-frame and aggregate IoU/Jaccard, Dice/F1, precision, recall, specificity, pixel accuracy, boundary precision/recall/F1, and the video-segmentation J&F score.
+
+Useful overrides:
+
+```bash
+# Force the GT numbering offset instead of detecting it.
+python scripts/evaluate_segmentation_masks.py --scene-name pillow --gt-frame-offset 1
+
+# Use a strict one-pixel contour tolerance.
+python scripts/evaluate_segmentation_masks.py --scene-name pillow --boundary-tolerance 1
+
+# Resize GT masks with nearest-neighbor if their resolution differs.
+python scripts/evaluate_segmentation_masks.py --scene-name pillow --resize-gt
+```
 ## Prepare a COLMAP / 3DGS dataset from SAM 2 masks
 
 This step runs on the host and builds a dataset that keeps only the segmented object:

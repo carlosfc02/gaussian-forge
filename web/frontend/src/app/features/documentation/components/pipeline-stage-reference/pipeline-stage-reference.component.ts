@@ -1,0 +1,2 @@
+import { Component, Input } from '@angular/core'; import { PipelineStageDefinition } from '../../../../shared/models/documentation.model';
+@Component({ selector: 'app-pipeline-stage-reference', standalone: true, templateUrl: './pipeline-stage-reference.component.html', styleUrl: './pipeline-stage-reference.component.scss' }) export class PipelineStageReferenceComponent { @Input() stages: PipelineStageDefinition[] = []; }

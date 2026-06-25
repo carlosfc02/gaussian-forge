@@ -1,42 +1,18 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormBuilder } from '@angular/forms';
 import { map, startWith } from 'rxjs';
+import { buildPipelineOptionDefaults, PIPELINE_STAGES, presetAsPipelinePreset } from '../../../shared/data/pipeline-catalog';
 import { PipelineAdvancedOptions, PipelinePreset, PipelinePresetName, PipelineRunMode, PipelineStageName, StartPipelineRunRequest } from '../../../shared/models/pipeline.model';
 
 export type AdvancedGroup = 'bbox' | 'frames' | 'colmap' | 'gs' | 'sugar';
 export type CustomStagePreset = 'until_3dgs' | 'segmentation_prepare' | 'clear';
-export const PIPELINE_STAGE_OPTIONS: { value: PipelineStageName; label: string }[] = [
-  { value: 'select_bbox', label: 'Select bbox' },
-  { value: 'segment_video', label: 'Segment video' },
-  { value: 'prepare_3dgs_dataset', label: 'Prepare 3DGS dataset' },
-  { value: 'run_colmap_pipeline', label: 'Run COLMAP' },
-  { value: 'train_3dgs', label: 'Train 3DGS' },
-  { value: 'train_sugar', label: 'Train SuGaR' },
-  { value: 'sugar_metrics', label: 'SuGaR metrics' },
-];
-
+export const PIPELINE_STAGE_OPTIONS = PIPELINE_STAGES.map(({ name, label }) => ({ value: name, label }));
 export const FALLBACK_PRESETS: Record<PipelinePresetName, PipelinePreset> = {
-  fast: { name: 'fast', frameStep: 4, sequentialOverlap: 10, iterations: 1000, sugarMode: 'low', sugarRefinementTime: 'short', runSugar: false },
-  balanced: { name: 'balanced', frameStep: 2, sequentialOverlap: 20, iterations: 7000, sugarMode: 'default', sugarRefinementTime: 'medium', runSugar: true },
-  quality: { name: 'quality', frameStep: 1, sequentialOverlap: 40, iterations: 30000, sugarMode: 'high', sugarRefinementTime: 'long', runSugar: true },
+  fast: presetAsPipelinePreset('fast'),
+  balanced: presetAsPipelinePreset('balanced'),
+  quality: presetAsPipelinePreset('quality'),
 };
-
-function optionDefaults(preset: PipelinePreset): Required<PipelineAdvancedOptions> {
-  return {
-    force: false, metrics: false, maskLoss: false, whiteBackground: false,
-    jobPath: '', maskOutputDir: '', datasetDir: '', gsModelDir: '', sugarOutputRoot: 'sugar_output', sugarOutputName: '',
-    frameIndex: 0, objectId: 1, checkpoint: 'sam2.1_hiera_small', bboxRunner: 'auto', frameStep: preset.frameStep,
-    matcher: 'sequential', sequentialOverlap: preset.sequentialOverlap, cameraModel: 'OPENCV', singleCamera: true,
-    useGpu: true, useColmapMasks: false, sparseModel: '', skipFeatureExtraction: false, skipMatching: false,
-    skipMapping: false, skipUndistort: false, iterations: preset.iterations, resolution: 1, eval: false, masksDir: '',
-    regularization: 'dn_consistency', refinementTime: preset.sugarRefinementTime as 'short' | 'medium' | 'long',
-    qualityMode: 'preset', surfaceLevel: 0.3, nVertices: null, gaussiansPerTriangle: null, refinementIterations: null,
-    squareSize: 8, gpu: 0, bboxMin: '', bboxMax: '', centerBbox: true, exportObj: true, exportPly: true,
-    postprocessMesh: false, postprocessDensityThreshold: 0.1, postprocessIterations: 5,
-  };
-}
-
 @Injectable()
 export class AdvancedPipelineFormService {
   private readonly fb = inject(FormBuilder).nonNullable;
@@ -50,7 +26,7 @@ export class AdvancedPipelineFormService {
     stage: this.fb.control<PipelineStageName>('segment_video'),
     runUntil: this.fb.control<PipelineStageName>('train_3dgs'),
     stages: this.fb.control<PipelineStageName[]>(PIPELINE_STAGE_OPTIONS.slice(0, 5).map((item) => item.value)),
-    options: this.fb.group(optionDefaults(FALLBACK_PRESETS.balanced)),
+    options: this.fb.group(buildPipelineOptionDefaults(FALLBACK_PRESETS.balanced)),
   });
 
   private readonly value = toSignal(this.form.valueChanges.pipe(map(() => this.form.getRawValue()), startWith(this.form.getRawValue())), { initialValue: this.form.getRawValue() });
@@ -128,7 +104,7 @@ export class AdvancedPipelineFormService {
   stageLabel(stage: string): string { return stage.replace(/_/g, ' '); }
 
   private applyPresetDefaults(name: PipelinePresetName, preserveTouched: boolean): void {
-    const defaults = optionDefaults(this.presets.find((item) => item.name === name) ?? FALLBACK_PRESETS[name]);
+    const defaults = buildPipelineOptionDefaults(this.presets.find((item) => item.name === name) ?? FALLBACK_PRESETS[name]);
     const current = this.form.controls.options.getRawValue();
     const next = { ...current };
     for (const [key, value] of Object.entries(defaults) as [keyof PipelineAdvancedOptions, PipelineAdvancedOptions[keyof PipelineAdvancedOptions]][]) {

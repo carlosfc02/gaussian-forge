@@ -1,9 +1,14 @@
-﻿FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+
+ARG APP_UID=1000
+ARG APP_GID=1000
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     CUDA_HOME=/usr/local/cuda \
+    HOME=/home/appuser \
+    XDG_CACHE_HOME=/home/appuser/.cache \
     SAM2_REPO_DIR=/opt/sam2 \
     SAM2_CHECKPOINT_DIR=/models/sam2
 
@@ -36,6 +41,12 @@ RUN git clone --depth 1 https://github.com/facebookresearch/sam2.git "${SAM2_REP
 
 COPY scripts /app/scripts
 
-RUN mkdir -p /data /jobs /logs /models/sam2
+RUN groupadd --gid "${APP_GID}" appuser \
+    && useradd --uid "${APP_UID}" --gid "${APP_GID}" --create-home --shell /bin/bash appuser \
+    && mkdir -p /data /jobs /logs /models/sam2 "${XDG_CACHE_HOME}" \
+    && chown -R "${APP_UID}:${APP_GID}" \
+        /app /opt/sam2 /data /jobs /logs /models /home/appuser
+
+USER appuser
 
 CMD ["python", "/app/scripts/segment_video.py", "--help"]

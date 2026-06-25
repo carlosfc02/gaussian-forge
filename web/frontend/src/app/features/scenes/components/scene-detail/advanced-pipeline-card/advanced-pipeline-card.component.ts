@@ -1,8 +1,9 @@
 import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { PipelinePreset, PipelinePresetName, PipelineStageName, StartPipelineRunRequest } from '../../../../../shared/models/pipeline.model';
 import { AdvancedPipelineFormService, CustomStagePreset, PIPELINE_STAGE_OPTIONS } from '../../../services/advanced-pipeline-form.service';
-@Component({ selector: 'app-advanced-pipeline-card', standalone: true, imports: [ReactiveFormsModule], providers: [AdvancedPipelineFormService], templateUrl: './advanced-pipeline-card.component.html', host: { class: 'scene-detail-card scene-detail-card--advanced' } })
+@Component({ selector: 'app-advanced-pipeline-card', standalone: true, imports: [ReactiveFormsModule, RouterLink], providers: [AdvancedPipelineFormService], templateUrl: './advanced-pipeline-card.component.html', host: { class: 'scene-detail-card scene-detail-card--advanced' } })
 export class AdvancedPipelineCardComponent implements OnChanges {
   @Input() presets: PipelinePreset[] = [];
   @Input({ required: true }) selectedPreset!: PipelinePresetName;

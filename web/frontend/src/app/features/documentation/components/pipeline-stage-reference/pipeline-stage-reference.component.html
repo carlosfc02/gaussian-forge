@@ -1,0 +1,1 @@
+<div class="stage-list">@for (stage of stages; track stage.name; let index = $index) {<article><span>{{ index + 1 }}</span><div><h3>{{ stage.label }}</h3><p>{{ stage.description }}</p><dl><div><dt>Requires</dt><dd>{{ stage.requires }}</dd></div><div><dt>Produces</dt><dd>{{ stage.produces }}</dd></div></dl></div></article>}</div>

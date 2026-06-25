@@ -473,11 +473,14 @@ def remove_if_force(path: Path, force: bool) -> None:
 
 
 def run_logged(command: list[str], log_path: Path) -> str:
-    print("[cmd]", build_command_string(command))
+    command_line = f"[cmd] {build_command_string(command)}"
+    print(command_line)
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
     output_parts: list[str] = []
     with log_path.open("w", encoding="utf-8", errors="replace") as log_handle:
+        log_handle.write(command_line + "\n")
+        log_handle.flush()
         process = subprocess.Popen(
             command,
             cwd=repo_root(),
@@ -512,6 +515,9 @@ def run_stage(command: list[str], stage: str, log_dir: Path, manifest: dict) -> 
         "log_path": str(log_path),
     }
     manifest["stages"].append(stage_record)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.touch()
+    write_json(log_dir / "full_pipeline_manifest.json", manifest)
 
     try:
         output = run_logged(command, log_path)

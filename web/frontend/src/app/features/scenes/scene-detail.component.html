@@ -36,9 +36,9 @@
         (launch3dgs)="facade.launch3dgsViewer()"
         (launchSugar)="facade.launchSugarViewer()"
       />
+      <app-generated-assets-card [scene]="scene" [assetCount]="facade.assetSummary()" />
       <app-metrics-card [metrics]="facade.sceneMetrics()" [stages]="facade.metricStages()" />
       <app-pipeline-logs-card [log]="facade.pipelineLog()" [selectedStage]="facade.selectedLogStage()" (selectedStageChange)="facade.setSelectedLogStage($event)" />
-      <app-generated-assets-card [scene]="scene" [assetCount]="facade.assetSummary()" />
     </section>
   } @else if (facade.isLoading()) {
     <div class="scene-detail-loading"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Loading project progress...</div>

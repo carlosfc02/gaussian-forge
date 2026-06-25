@@ -1,9 +1,14 @@
 FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 
+ARG APP_UID=1000
+ARG APP_GID=1000
+
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     CUDA_HOME=/usr/local/cuda \
+    HOME=/home/appuser \
+    XDG_CACHE_HOME=/home/appuser/.cache \
     FORCE_CUDA=1 \
     TORCH_CUDA_ARCH_LIST=8.9
 
@@ -46,5 +51,13 @@ RUN python -m pip install \
 RUN python -m pip install --no-build-isolation ./submodules/diff-gaussian-rasterization
 RUN python -m pip install --no-build-isolation ./submodules/simple-knn
 RUN python -m pip install --no-build-isolation ./submodules/fused-ssim
+
+RUN groupadd --gid "${APP_GID}" appuser \
+    && useradd --uid "${APP_UID}" --gid "${APP_GID}" --create-home --shell /bin/bash appuser \
+    && mkdir -p /data /logs "${XDG_CACHE_HOME}" \
+    && chown -R "${APP_UID}:${APP_GID}" \
+        /opt/gaussian-splatting /data /logs /home/appuser
+
+USER appuser
 
 CMD ["python", "train.py", "--help"]
