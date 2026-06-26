@@ -1,7 +1,23 @@
-<div class="scene-detail-card__header"><h2>Generated assets</h2><span class="scene-detail-card__meta">{{ assetCount }}/4</span></div>
+<div class="scene-detail-card__header">
+  <h2>Generated assets</h2>
+  <span class="scene-detail-card__meta">{{ assetCount }}/4</span>
+</div>
 <ul class="scene-detail-assets">
   <li [class.scene-detail-assets__item--ready]="!!scene.videoPath"><span>Input video</span><strong>{{ scene.videoPath ? 'Ready' : 'Missing' }}</strong></li>
   <li [class.scene-detail-assets__item--ready]="!!scene.maskPaths"><span>Masks</span><strong>{{ scene.maskPaths ? 'Ready' : 'Pending' }}</strong></li>
   <li [class.scene-detail-assets__item--ready]="!!scene.gsPath"><span>3DGS dataset</span><strong>{{ scene.gsPath ? 'Ready' : 'Pending' }}</strong></li>
   <li [class.scene-detail-assets__item--ready]="!!scene.sugarOutputPath"><span>SuGaR output</span><strong>{{ scene.sugarOutputPath ? 'Ready' : 'Pending' }}</strong></li>
 </ul>
+<div class="scene-detail-download-actions">
+  <button type="button" class="btn btn-outline-light scene-detail-download-button" [disabled]="!scene.gsPlyAvailable || downloadingAsset !== null" (click)="download3dgsPly.emit()">
+    @if (downloadingAsset === '3dgs-ply') { <span class="spinner-border spinner-border-sm"></span> Downloading... } @else { <i class="bi bi-download"></i> Download 3DGS PLY }
+  </button>
+  <button type="button" class="btn btn-outline-light scene-detail-download-button" [disabled]="!scene.sugarPlyAvailable || downloadingAsset !== null" (click)="downloadSugarPly.emit()">
+    @if (downloadingAsset === 'sugar-ply') { <span class="spinner-border spinner-border-sm"></span> Downloading... } @else { <i class="bi bi-download"></i> Download SuGaR PLY }
+  </button>
+  <button type="button" class="btn btn-outline-light scene-detail-download-button" [disabled]="!scene.sugarObjAvailable || downloadingAsset !== null" (click)="downloadSugarObj.emit()">
+    @if (downloadingAsset === 'sugar-obj') { <span class="spinner-border spinner-border-sm"></span> Downloading... } @else { <i class="bi bi-file-earmark-zip"></i> Download SuGaR OBJ }
+  </button>
+</div>
+@if (actionError) { <div class="scene-detail-run-alert scene-detail-run-alert--danger"><i class="bi bi-exclamation-triangle"></i><span>{{ actionError }}</span></div> }
+@if (actionMessage) { <div class="scene-detail-run-alert scene-detail-run-alert--success"><i class="bi bi-check-circle"></i><span>{{ actionMessage }}</span></div> }

@@ -4,6 +4,8 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -11,12 +13,14 @@ from typing import Any
 from fastapi import HTTPException, UploadFile
 
 from app.core.paths import (
+    DATA_DIR,
     FRAMES_VIDEOS_DIR,
     GS_DIR,
     LOGS_DIR,
     MASKS_DIR,
     PROJECT_ROOT,
     SCRIPTS_DIR,
+    SEGMENTATION_JOBS_DIR,
     SUGAR_OUTPUT_DIR,
     VIDEOS_DIR,
 )
@@ -24,6 +28,7 @@ from app.core.paths import (
 from app.schemas.scene import MetricStageRead, SceneMetricsRead, SceneRead, SceneStatus, ViewerLaunchRead
 
 ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv'}
+SUGAR_OBJ_PACKAGE_EXTENSIONS = {'.obj', '.mtl', '.png'}
 THUMBNAIL_EXTENSION = '.jpg'
 METRIC_STAGE_DIRS = ('bbox_estimate', 'colmap', 'train_3dgs', 'train_sugar')
 
@@ -94,6 +99,9 @@ def build_scene_read(scene_name: str, video_file: Path | None = None) -> SceneRe
         sugar_output_path=str(SUGAR_OUTPUT_DIR / scene_name)
         if (SUGAR_OUTPUT_DIR / scene_name).exists()
         else None,
+        gs_ply_available=find_latest_3dgs_ply(scene_name) is not None,
+        sugar_ply_available=find_refined_sugar_ply(scene_name, include_variants=False) is not None,
+        sugar_obj_available=find_refined_sugar_obj(scene_name) is not None,
         pipeline_run=get_latest_pipeline_run(scene_name),
     )
 
@@ -282,11 +290,32 @@ def get_scene_metrics(scene_name: str) -> SceneMetricsRead:
     return SceneMetricsRead(scene_name=scene_name, stages=stages, updated_at=updated_at)
 
 
-def _find_refined_sugar_ply(scene_name: str) -> Path | None:
+def find_latest_3dgs_ply(scene_name: str) -> tuple[Path, int] | None:
+    scene_name = sanitaze_scene_name(scene_name)
+    point_cloud_root = GS_DIR / scene_name / 'gs' / 'model' / 'point_cloud'
+    if not point_cloud_root.is_dir():
+        return None
+
+    candidates: list[tuple[int, Path]] = []
+    for iteration_dir in point_cloud_root.glob('iteration_*'):
+        match = re.fullmatch(r'iteration_(\d+)', iteration_dir.name)
+        point_cloud = iteration_dir / 'point_cloud.ply'
+        if match and point_cloud.is_file():
+            candidates.append((int(match.group(1)), point_cloud))
+
+    if not candidates:
+        return None
+
+    iteration, path = max(candidates, key=lambda candidate: candidate[0])
+    return path, iteration
+
+
+def find_refined_sugar_ply(scene_name: str, include_variants: bool = True) -> Path | None:
+    scene_name = sanitaze_scene_name(scene_name)
     exact_scene_dir = SUGAR_OUTPUT_DIR / scene_name
     search_roots = [exact_scene_dir]
 
-    if SUGAR_OUTPUT_DIR.is_dir():
+    if include_variants and SUGAR_OUTPUT_DIR.is_dir():
         prefix_roots = sorted(
             [path for path in SUGAR_OUTPUT_DIR.glob(f'{scene_name}_*') if path.is_dir()],
             key=lambda path: path.stat().st_mtime,
@@ -306,24 +335,101 @@ def _find_refined_sugar_ply(scene_name: str) -> Path | None:
     return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
-def _find_powershell_executable() -> str:
-    for candidate in ('powershell.exe', 'powershell', 'pwsh.exe', 'pwsh'):
-        resolved = shutil.which(candidate)
-        if resolved:
-            return resolved
-    raise HTTPException(status_code=409, detail='PowerShell is not available to launch the local viewer scripts.')
+def find_refined_sugar_obj(scene_name: str) -> Path | None:
+    scene_name = sanitaze_scene_name(scene_name)
+    refined_mesh_root = SUGAR_OUTPUT_DIR / scene_name / 'refined_mesh'
+    if not refined_mesh_root.is_dir():
+        return None
+
+    candidates = [path for path in refined_mesh_root.rglob('*.obj') if path.is_file()]
+    if not candidates:
+        return None
+
+    return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
-def _as_powershell_path(path: Path) -> str:
-    if os.name == 'nt':
-        return str(path)
+def build_sugar_obj_archive(scene_name: str) -> Path:
+    scene_name = sanitaze_scene_name(scene_name)
+    obj_path = find_refined_sugar_obj(scene_name)
+    if obj_path is None:
+        raise HTTPException(status_code=404, detail=f'No refined SuGaR .obj found for scene {scene_name}.')
 
-    if shutil.which('wslpath'):
-        result = subprocess.run(['wslpath', '-w', str(path)], capture_output=True, text=True, check=False)
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
+    package_files = [
+        path
+        for path in obj_path.parent.iterdir()
+        if path.is_file() and path.suffix.lower() in SUGAR_OBJ_PACKAGE_EXTENSIONS
+    ]
+    temporary_file = tempfile.NamedTemporaryFile(prefix=f'{scene_name}_sugar_', suffix='.zip', delete=False)
+    archive_path = Path(temporary_file.name)
+    temporary_file.close()
 
-    return str(path)
+    try:
+        with zipfile.ZipFile(archive_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+            for path in sorted(package_files):
+                archive.write(path, arcname=path.name)
+    except Exception:
+        archive_path.unlink(missing_ok=True)
+        raise
+
+    return archive_path
+
+
+def _ensure_removable(path: Path) -> None:
+    if not path.exists() and not path.is_symlink():
+        return
+
+    if not os.access(path.parent, os.W_OK | os.X_OK):
+        raise PermissionError(str(path.parent))
+
+    if path.is_dir() and not path.is_symlink():
+        for directory, _subdirectories, _files in os.walk(path):
+            directory_path = Path(directory)
+            if not os.access(directory_path, os.W_OK | os.X_OK):
+                raise PermissionError(str(directory_path))
+
+
+def _remove_path(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    elif path.exists() or path.is_symlink():
+        path.unlink()
+
+
+def clear_scene_generated_data(scene_name: str) -> SceneRead:
+    from app.services.pipeline_service import ensure_no_active_pipeline
+
+    scene_name = sanitaze_scene_name(scene_name)
+    video_file = get_scene_video(scene_name)
+    ensure_no_active_pipeline(scene_name)
+
+    targets = [
+        resolve_scene_thumbnail_file(scene_name),
+        MASKS_DIR / scene_name,
+        GS_DIR / scene_name,
+        SUGAR_OUTPUT_DIR / scene_name,
+        DATA_DIR / 'metrics' / 'segmentation' / scene_name,
+        SEGMENTATION_JOBS_DIR / f'{scene_name}_job.json',
+        LOGS_DIR / scene_name,
+    ]
+
+    try:
+        for target in targets:
+            _ensure_removable(target)
+        for target in targets:
+            _remove_path(target)
+    except PermissionError as error:
+        blocked_path = error.filename or str(error)
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f'Cannot clear generated data because {blocked_path} is not writable. '
+                'Fix ownership of artifacts created by root and try again.'
+            ),
+        ) from error
+    except OSError as error:
+        raise HTTPException(status_code=409, detail=f'Could not clear generated data: {error}') from error
+
+    return build_scene_read(scene_name, video_file)
 
 
 def _run_viewer_script(scene_name: str, viewer: str, command: list[str]) -> ViewerLaunchRead:
@@ -345,7 +451,7 @@ def _run_viewer_script(scene_name: str, viewer: str, command: list[str]) -> View
         log_path.write_text(log_header + (error.stdout or '') + (error.stderr or ''), encoding='utf-8')
         raise HTTPException(status_code=504, detail=f'{viewer} viewer script did not finish its launch step in time.') from error
     except FileNotFoundError as error:
-        raise HTTPException(status_code=409, detail=f'Could not execute {command[0]}.') from error
+        raise HTTPException(status_code=409, detail=f'Could not execute {command[0]}. Is Bash available?') from error
 
     with log_path.open('a', encoding='utf-8') as log_handle:
         log_handle.write(log_header)
@@ -362,35 +468,29 @@ def _run_viewer_script(scene_name: str, viewer: str, command: list[str]) -> View
         scene_name=scene_name,
         viewer=viewer,
         status='launched',
-        message=f'{viewer} viewer launch requested. Check the Windows desktop for the viewer window.',
+        message=f'{viewer} viewer launch requested. Check the Linux/WSL desktop for the viewer window.',
         command=command,
     )
 
+
+def _viewer_script_path(script_name: str) -> Path:
+    script_path = SCRIPTS_DIR / script_name
+    if not script_path.is_file():
+        raise HTTPException(status_code=409, detail=f'Viewer launcher script not found: {_project_relative(script_path)}')
+    return script_path
 
 def launch_3dgs_viewer(scene_name: str) -> ViewerLaunchRead:
     scene_name = sanitaze_scene_name(scene_name)
     model_dir = GS_DIR / scene_name / 'gs' / 'model'
     source_dir = GS_DIR / scene_name / 'gs' / 'source'
-    viewer_exe = PROJECT_ROOT / 'tools' / '3dgs-viewer' / 'viewer-dist' / 'bin' / 'SIBR_gaussianViewer_app.exe'
 
     if not model_dir.is_dir():
         raise HTTPException(status_code=404, detail=f'3DGS model directory not found: {_project_relative(model_dir)}')
     if not source_dir.is_dir():
         raise HTTPException(status_code=404, detail=f'3DGS source directory not found: {_project_relative(source_dir)}')
-    if not viewer_exe.is_file():
-        raise HTTPException(status_code=409, detail='3DGS viewer is not installed. Run scripts/install_3dgs_viewer.ps1 first.')
 
-    script_path = SCRIPTS_DIR / 'open_3dgs_viewer.ps1'
-    command = [
-        _find_powershell_executable(),
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        _as_powershell_path(script_path),
-        '-SceneDir',
-        f'3dgs/{scene_name}',
-    ]
+    script_path = _viewer_script_path('open_3dgs_viewer.sh')
+    command = ['bash', str(script_path), '--scene-dir', f'3dgs/{scene_name}']
     return _run_viewer_script(scene_name, '3dgs', command)
 
 
@@ -398,8 +498,7 @@ def launch_sugar_viewer(scene_name: str) -> ViewerLaunchRead:
     scene_name = sanitaze_scene_name(scene_name)
     source_dir = GS_DIR / scene_name / 'gs' / 'source'
     model_dir = GS_DIR / scene_name / 'gs' / 'model'
-    sugar_ply = _find_refined_sugar_ply(scene_name)
-    viewer_exe = PROJECT_ROOT / 'tools' / '3dgs-viewer' / 'viewer-dist' / 'bin' / 'SIBR_gaussianViewer_app.exe'
+    sugar_ply = find_refined_sugar_ply(scene_name)
 
     if sugar_ply is None:
         raise HTTPException(status_code=404, detail=f'No refined SuGaR .ply found for scene {scene_name}.')
@@ -407,22 +506,16 @@ def launch_sugar_viewer(scene_name: str) -> ViewerLaunchRead:
         raise HTTPException(status_code=404, detail=f'3DGS source directory not found: {_project_relative(source_dir)}')
     if not model_dir.is_dir():
         raise HTTPException(status_code=404, detail=f'3DGS model directory not found: {_project_relative(model_dir)}')
-    if not viewer_exe.is_file():
-        raise HTTPException(status_code=409, detail='3DGS viewer is not installed. Run scripts/install_3dgs_viewer.ps1 first.')
 
-    script_path = SCRIPTS_DIR / 'open_sugar_viewer.ps1'
+    script_path = _viewer_script_path('open_sugar_viewer.sh')
     command = [
-        _find_powershell_executable(),
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        _as_powershell_path(script_path),
-        '-PlyPath',
+        'bash',
+        str(script_path),
+        '--ply-path',
         _project_relative(sugar_ply),
-        '-SourceDir',
+        '--source-dir',
         f'3dgs/{scene_name}/gs/source',
-        '-BaseModelDir',
+        '--base-model-dir',
         f'3dgs/{scene_name}/gs/model',
     ]
     return _run_viewer_script(scene_name, 'sugar', command)

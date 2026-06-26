@@ -83,7 +83,7 @@ export class DashboardComponent {
     const activeProjects = scenes.filter((scene) => !isSceneTerminal(scene.status)).length;
     const completedProjects = scenes.filter(
       (scene) =>
-        isSceneHealthy(scene.status) && getSceneStatusMeta(scene.status).progress >= 99,
+        isSceneHealthy(scene.status) && getSceneStatusMeta(scene.status).progress === 100,
     ).length;
     const healthyProjects = scenes.filter((scene) => isSceneHealthy(scene.status)).length;
     const averageCompletion = totalProjects

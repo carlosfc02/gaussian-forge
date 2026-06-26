@@ -29,6 +29,9 @@ class SceneRead(BaseModel):
     masks_path: str | None = None
     gs_path: str | None = None
     sugar_output_path: str | None = None
+    gs_ply_available: bool = False
+    sugar_ply_available: bool = False
+    sugar_obj_available: bool = False
     pipeline_run: PipelineRunRead | None = None
 
 

@@ -17,6 +17,12 @@ export class SceneService {
     return this.http.get<SceneDto>(`/api/scenes/${encodeURIComponent(sceneName)}`).pipe(map(mapSceneDto));
   }
 
+  clearGeneratedData(sceneName: string): Observable<Scene> {
+    return this.http
+      .delete<SceneDto>(`/api/scenes/${encodeURIComponent(sceneName)}/data`)
+      .pipe(map(mapSceneDto));
+  }
+
   createScene(sceneName: string, video: File): Observable<Scene> {
     const formData = new FormData();
     formData.append('scene_name', sceneName);

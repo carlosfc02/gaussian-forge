@@ -201,8 +201,22 @@
   height: 0.55rem;
 
   border-radius: 50%;
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.gf-status-dot--checking {
+  background: var(--gf-warning);
+  box-shadow: 0 0 12px rgba(255, 203, 69, 0.72);
+}
+
+.gf-status-dot--connected {
   background: var(--gf-success);
   box-shadow: 0 0 12px rgba(78, 240, 137, 0.8);
+}
+
+.gf-status-dot--disconnected {
+  background: var(--gf-danger);
+  box-shadow: 0 0 12px rgba(255, 141, 130, 0.8);
 }
 
 @media (max-width: 900px) {

@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { catchError, distinctUntilChanged, finalize, map, merge, of, shareReplay, Subject, switchMap, tap, timer } from 'rxjs';
 import { PipelineService } from '../../../core/services/pipeline.service';
+import { SceneAssetKind, SceneAssetService } from '../../../core/services/scene-asset.service';
 import { SceneMetricsService } from '../../../core/services/scene-metrics.service';
 import { SceneService } from '../../../core/services/scene.service';
 import { ViewerService } from '../../../core/services/viewer.service';
@@ -14,6 +15,7 @@ import { getSceneAssetCount, getSceneStatusMeta } from '../../../shared/utils/sc
 export class SceneDetailFacade {
   private readonly route = inject(ActivatedRoute);
   private readonly sceneService = inject(SceneService);
+  private readonly sceneAssetService = inject(SceneAssetService);
   private readonly pipelineService = inject(PipelineService);
   private readonly metricsService = inject(SceneMetricsService);
   private readonly viewerService = inject(ViewerService);
@@ -33,6 +35,12 @@ export class SceneDetailFacade {
   readonly viewerActionMessage = signal<string | null>(null);
   readonly isLaunching3dgsViewer = signal(false);
   readonly isLaunchingSugarViewer = signal(false);
+  readonly downloadingAsset = signal<SceneAssetKind | null>(null);
+  readonly assetActionError = signal<string | null>(null);
+  readonly assetActionMessage = signal<string | null>(null);
+  readonly isClearingGeneratedData = signal(false);
+  readonly clearActionError = signal<string | null>(null);
+  readonly clearActionMessage = signal<string | null>(null);
 
   private readonly sceneName$ = this.route.paramMap.pipe(
     map((params) => params.get('sceneName') ?? ''),
@@ -86,6 +94,7 @@ export class SceneDetailFacade {
   readonly metricStages = computed(() => this.sceneMetrics()?.stages ?? []);
   readonly pipelineIsRunning = computed(() => this.pipelineRun()?.status === 'running');
   readonly canRunPipeline = computed(() => !!this.scene()?.videoPath && !this.pipelineIsRunning() && !this.isStartingPipeline() && !this.isStartingAdvancedPipeline() && !this.isCancelingPipeline());
+  readonly canClearGeneratedData = computed(() => !!this.scene()?.videoPath && !this.pipelineIsRunning() && !this.isClearingGeneratedData());
 
   setSelectedPreset(preset: PipelinePresetName): void { this.selectedPreset.set(preset); }
   setSelectedLogStage(stage: string): void { this.selectedLogStage.set(stage || null); this.logRefreshTrigger$.next(); }
@@ -125,6 +134,47 @@ export class SceneDetailFacade {
 
   launch3dgsViewer(): void { this.launchViewer('3dgs'); }
   launchSugarViewer(): void { this.launchViewer('sugar'); }
+  download3dgsPly(): void { this.downloadAsset('3dgs-ply'); }
+  downloadSugarPly(): void { this.downloadAsset('sugar-ply'); }
+  downloadSugarObj(): void { this.downloadAsset('sugar-obj'); }
+
+  clearGeneratedData(): void {
+    const scene = this.scene();
+    if (!scene || !this.canClearGeneratedData()) return;
+
+    this.isClearingGeneratedData.set(true);
+    this.clearActionError.set(null);
+    this.clearActionMessage.set(null);
+    this.sceneService.clearGeneratedData(scene.name).pipe(
+      finalize(() => this.isClearingGeneratedData.set(false)),
+    ).subscribe({
+      next: () => {
+        this.clearActionMessage.set('Generated data cleared. The original video and GT data were kept.');
+        this.selectedLogStage.set(null);
+        this.refresh();
+      },
+      error: (error) => this.clearActionError.set(
+        error?.error?.detail ?? 'Could not clear the generated scene data.',
+      ),
+    });
+  }
+
+  private downloadAsset(asset: SceneAssetKind): void {
+    const scene = this.scene();
+    if (!scene || this.downloadingAsset() !== null) return;
+
+    this.downloadingAsset.set(asset);
+    this.assetActionError.set(null);
+    this.assetActionMessage.set(null);
+    this.sceneAssetService.download(scene.name, asset).pipe(
+      finalize(() => this.downloadingAsset.set(null)),
+    ).subscribe({
+      next: (filename) => this.assetActionMessage.set(`${filename} downloaded.`),
+      error: (error) => this.assetActionError.set(
+        error?.error?.detail ?? 'Could not download the requested model.',
+      ),
+    });
+  }
 
   private launchViewer(viewer: '3dgs' | 'sugar'): void {
     const scene = this.scene();
@@ -148,6 +198,10 @@ export class SceneDetailFacade {
     this.clearPipelineMessages();
     this.viewerActionError.set(null);
     this.viewerActionMessage.set(null);
+    this.assetActionError.set(null);
+    this.assetActionMessage.set(null);
+    this.clearActionError.set(null);
+    this.clearActionMessage.set(null);
     this.selectedLogStage.set(null);
   }
 }

@@ -96,3 +96,31 @@ services:
     stdin_open: true
     tty: true
     command: ["conda", "run", "--no-capture-output", "-n", "sugar", "python", "train_full_pipeline.py", "--help"]
+
+
+  viewer:
+    build:
+      context: .
+      dockerfile: docker/viewer/Dockerfile
+      args:
+        APP_UID: ${HOST_UID:-1000}
+        APP_GID: ${HOST_GID:-1000}
+    image: tfg/3dgs-viewer:latest
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    working_dir: /opt/gaussian-splatting/build
+    environment:
+      DISPLAY: ${DISPLAY:-:0}
+      WAYLAND_DISPLAY: ${WAYLAND_DISPLAY:-}
+      XDG_RUNTIME_DIR: ${XDG_RUNTIME_DIR:-/tmp/runtime-appuser}
+      PULSE_SERVER: ${PULSE_SERVER:-}
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics,display
+    volumes:
+      - ./data:/data
+      - ./logs:/logs
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /mnt/wslg:/mnt/wslg
+    gpus: all
+    stdin_open: true
+    tty: true
+    command: ["--help"]

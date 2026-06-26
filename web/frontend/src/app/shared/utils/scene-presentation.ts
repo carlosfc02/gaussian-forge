@@ -103,7 +103,7 @@ const SCENE_STATUS_META: Record<SceneStatus, SceneStatusMeta> = {
     label: 'SuGaR ready',
     stage: 'Surface reconstruction ready',
     description: 'A SuGaR output exists and the mesh stage is available.',
-    progress: 99,
+    progress: 100,
     tone: 'success',
     icon: 'bi-gem',
   },

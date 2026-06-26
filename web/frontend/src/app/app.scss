@@ -13,3 +13,9 @@
   overflow-y: auto;
   background: var(--gf-bg);
 }
+
+@media (max-width: 900px) {
+  .gf-app-shell {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+}

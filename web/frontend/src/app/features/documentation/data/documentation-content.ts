@@ -23,13 +23,13 @@ export const BASIC_WORKFLOW_STEPS: DocumentationStep[] = [
   { number: '02', title: 'Choose a preset', description: 'Open the project detail and select Fast, Balanced or Quality.', details: ['Fast validates the workflow and stops after 3DGS.', 'Balanced is the recommended default.', 'Quality processes every frame and performs the longest training.'] },
   { number: '03', title: 'Select the object', description: 'When bbox selection starts, draw a tight rectangle around the target object in the local selector.', details: ['Include the complete object.', 'Prefer a sharp frame with little occlusion.'] },
   { number: '04', title: 'Monitor processing', description: 'Follow the project status and Stage logs while SAM 2, COLMAP, 3DGS and SuGaR run.', details: ['Logs refresh every two seconds.', 'Cancel stops the active run and its child process tree.'] },
-  { number: '05', title: 'Inspect results', description: 'Review metrics and generated assets, then open the local 3DGS or SuGaR viewer.', details: ['Viewer buttons launch on the backend workstation.', 'Generated assets remain under the project data directories.'] },
+  { number: '05', title: 'Inspect results', description: 'Review metrics and generated assets, then open the local 3DGS or SuGaR viewer.', details: ['Viewer buttons launch Linux/WSL Docker viewer windows on the backend workstation.', 'Generated assets remain under the project data directories.'] },
 ];
 
 export const BASIC_CALLOUTS: Record<string, DocumentationCallout> = {
   status: { tone: 'info', title: 'Status is inferred from real artifacts', content: 'The project status combines active pipeline manifests with generated masks, datasets, COLMAP output, 3DGS checkpoints and SuGaR artifacts.' },
   cancel: { tone: 'warning', title: 'One active run per scene', content: 'GaussianForge blocks a second pipeline run for the same scene. Cancel or wait for the current run before starting another configuration.' },
-  viewers: { tone: 'info', title: 'Viewers are local applications', content: 'The web buttons launch PowerShell viewer scripts on the machine running the backend. They are not embedded browser viewers.' },
+  viewers: { tone: 'info', title: 'Viewers are local applications', content: 'The web buttons launch Linux/WSL Docker viewer scripts on the machine running the backend. They are not embedded browser viewers.' },
 };
 
 export const PIPELINE_RECIPES: PipelineRecipe[] = [

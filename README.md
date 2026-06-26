@@ -8,7 +8,7 @@ GaussianForge is a reproducible pipeline for object-centric 3D reconstruction fr
 - `colmap`: CUDA-enabled container for sparse reconstruction from the prepared dataset.
 - `gaussian-splatting`: Container for official 3DGS training on the COLMAP output.
 - `sugar`: Container for official SuGaR mesh-oriented training on top of the prepared COLMAP dataset and, by default, the vanilla 3DGS checkpoint.
-- `tools/3dgs-viewer`: Local Windows viewer binaries for real-time inspection of trained 3DGS scenes.
+- `viewer`: Linux/WSL Docker service for opening trained 3DGS and SuGaR results in the SIBR viewer.
 - `web/backend`: FastAPI backend scaffold for the future web interface, currently focused on scene creation and scene status inspection.
 
 ## Directory layout
@@ -30,7 +30,7 @@ GaussianForge is a reproducible pipeline for object-centric 3D reconstruction fr
 ## Build
 
 ```bash
-docker compose build sam2-seg colmap gaussian-splatting sugar
+docker compose build sam2-seg colmap gaussian-splatting sugar viewer
 ```
 
 ## Run the web backend
@@ -365,62 +365,67 @@ Notes:
 - If you reuse an existing vanilla 3DGS model, SuGaR expects `point_cloud/iteration_7000/point_cloud.ply`.
 - `--from-scratch` tells SuGaR to train its own initial vanilla 3DGS stage for 7000 iterations.
 
-## Install the local 3DGS viewer on Windows
+## Build the Linux/WSL 3DGS viewer
 
-This downloads the official prebuilt SIBR viewer binaries recommended by the 3DGS authors:
+GaussianForge is designed to run end-to-end on Linux or WSL2. The local viewer is provided as a Docker service that builds the Linux SIBR Gaussian Viewer from the official 3D Gaussian Splatting repository:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install_3dgs_viewer.ps1
+```bash
+docker compose build viewer
 ```
 
-The viewer binaries are extracted under `tools/3dgs-viewer/viewer-dist`.
+Requirements:
 
-Important:
+- Docker with GPU support.
+- NVIDIA drivers and NVIDIA Container Toolkit, or Docker Desktop with WSL2 GPU integration.
+- A graphical Linux session. On WSL2, WSLg is recommended. On native Linux with X11, you may need:
 
-- The official Windows viewer requires `cudart64_12.dll`.
-- That means you need a CUDA 12.x runtime/toolkit installed on Windows.
-- Having only CUDA 13.x in `PATH` is not enough for this viewer build.
+```bash
+xhost +local:docker
+```
+
+The legacy PowerShell scripts remain in `scripts/` for manual Windows experiments, but the web backend launches the Linux `.sh` scripts and does not require PowerShell or Windows viewer binaries.
 
 ## Open a trained scene in the local 3DGS viewer
 
-To open the real-time viewer for a trained scene:
+To open the real-time viewer for a trained scene from Linux or WSL:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\open_3dgs_viewer.ps1 -SceneDir 3dgs\wood_star
+```bash
+scripts/open_3dgs_viewer.sh --scene-dir 3dgs/wood_star
 ```
 
 Useful options:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\open_3dgs_viewer.ps1 -SceneDir 3dgs\wood_star -Iteration 100 -LoadImages
+```bash
+scripts/open_3dgs_viewer.sh --scene-dir 3dgs/wood_star --iteration 100 --load-images
+scripts/open_3dgs_viewer.sh --scene-dir 3dgs/wood_star --no-interop
+scripts/open_3dgs_viewer.sh --scene-dir 3dgs/wood_star --print-only
 ```
 
 Notes:
 
-- `-SceneDir` is relative to `data/`.
-- If you prefer explicit paths, you can use `-ModelDir` and `-SourceDir` instead.
-- If the viewer has interop issues on your machine, retry with `-NoInterop`.
-- The real-time viewer executable is `tools/3dgs-viewer/viewer-dist/bin/SIBR_gaussianViewer_app.exe`.
-- The launcher now checks for CUDA 12 runtime and stops with a clear message if it is missing.
+- `--scene-dir` is relative to `data/`.
+- If you prefer explicit paths, use `--model-dir` and `--source-dir` instead.
+- If the viewer has interop issues, retry with `--no-interop`.
+- The script starts `docker compose run --rm -d viewer ...`, so the terminal or backend request returns immediately after Docker accepts the launch.
 
 ## Open a SuGaR refined PLY in the local viewer
 
 Use the SuGaR-specific wrapper launcher when you want to inspect a refined `.ply` through the same SIBR viewer:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\open_sugar_viewer.ps1 -PlyPath sugar_output\wood_star\refined_ply\source\your_model.ply -SourceDir 3dgs\wood_star\gs\source
+```bash
+scripts/open_sugar_viewer.sh --ply-path sugar_output/wood_star/refined_ply/source/your_model.ply --source-dir 3dgs/wood_star/gs/source
 ```
 
 Useful options:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\open_sugar_viewer.ps1 -PlyPath sugar_output\wood_star\refined_ply\source\your_model.ply -SourceDir 3dgs\wood_star\gs\source -LoadImages
+```bash
+scripts/open_sugar_viewer.sh --ply-path sugar_output/wood_star/refined_ply/source/your_model.ply --source-dir 3dgs/wood_star/gs/source --load-images
 ```
 
 Notes:
 
-- `-PlyPath` is resolved relative to `data/` unless you pass an absolute path.
-- `-SourceDir` should point to the matching `gs/source` dataset.
+- `--ply-path` is resolved relative to `data/` unless you pass an absolute path.
+- `--source-dir` should point to the matching `gs/source` dataset.
 - The script creates a temporary viewer-compatible wrapper under `data/sugar_output/viewer/`.
 
 ## Job contract

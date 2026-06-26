@@ -1,3 +1,19 @@
-<div class="scene-detail-card__header"><h2>Pipeline status</h2><span class="scene-detail-card__meta">live refresh every 5s</span></div>
+<div class="scene-detail-card__header">
+  <h2>Pipeline status</h2>
+  <span class="scene-detail-card__meta">live refresh every 5s</span>
+</div>
 <strong class="scene-detail-progress">{{ meta?.progress }}%</strong><p class="scene-detail-stage">{{ meta?.stage }}</p>
 <ngb-progressbar [value]="meta?.progress ?? 0" [max]="100" [showValue]="false" height="0.6rem" type="info" />
+@if (actionError) {
+  <div class="scene-detail-run-alert scene-detail-run-alert--danger">
+    <i class="bi bi-exclamation-triangle"></i><span>{{ actionError }}</span>
+  </div>
+}
+@if (actionMessage) {
+  <div class="scene-detail-run-alert scene-detail-run-alert--success">
+    <i class="bi bi-check-circle"></i><span>{{ actionMessage }}</span>
+  </div>
+}
+<button type="button" class="btn btn-outline-danger scene-detail-clear-button" [disabled]="!canClearGeneratedData || isClearingGeneratedData" (click)="confirmClearGeneratedData()">
+  @if (isClearingGeneratedData) { <span class="spinner-border spinner-border-sm"></span> Clearing... } @else { <i class="bi bi-trash3"></i> Clear generated data }
+</button>
