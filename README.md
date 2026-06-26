@@ -65,10 +65,29 @@ npm install
 cd ../..
 ```
 
-Download the default SAM 2 checkpoint:
+Download the SAM 2 checkpoint. The default used by the web is `sam2.1_hiera_small`:
 
 ```bash
 docker compose run --rm sam2-seg python /app/scripts/bootstrap_checkpoints.py --checkpoint sam2.1_hiera_small
+```
+
+Supported checkpoint names:
+
+- `sam2.1_hiera_tiny`
+- `sam2.1_hiera_small`
+- `sam2.1_hiera_base_plus`
+- `sam2.1_hiera_large`
+
+To download the checkpoint you want to use, replace the name:
+
+```bash
+docker compose run --rm sam2-seg python /app/scripts/bootstrap_checkpoints.py --checkpoint sam2.1_hiera_large
+```
+
+To download all supported checkpoints:
+
+```bash
+docker compose run --rm sam2-seg python /app/scripts/bootstrap_checkpoints.py --checkpoint all
 ```
 
 Start the backend:

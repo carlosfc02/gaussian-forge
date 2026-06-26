@@ -144,11 +144,31 @@ Each stage writes a log file that the web polls for live output.
 
 Downloads SAM 2.1 checkpoints into `models/sam2`.
 
+Default checkpoint used by the web/presets:
+
 ```bash
 docker compose run --rm sam2-seg python /app/scripts/bootstrap_checkpoints.py --checkpoint sam2.1_hiera_small
 ```
 
-Use `--checkpoint all` to download all supported checkpoints.
+Supported values:
+
+- `sam2.1_hiera_tiny`
+- `sam2.1_hiera_small`
+- `sam2.1_hiera_base_plus`
+- `sam2.1_hiera_large`
+- `all`
+
+Example using the large checkpoint:
+
+```bash
+docker compose run --rm sam2-seg python /app/scripts/bootstrap_checkpoints.py --checkpoint sam2.1_hiera_large
+```
+
+Force a redownload if the file already exists:
+
+```bash
+docker compose run --rm sam2-seg python /app/scripts/bootstrap_checkpoints.py --checkpoint sam2.1_hiera_large --force
+```
 
 ### `scripts/select_bbox.py`
 
