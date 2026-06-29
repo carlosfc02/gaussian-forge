@@ -277,7 +277,7 @@ Metrics include L1, PSNR, SSIM and LPIPS. The report is written to:
 data/3dgs/<scene>/metrics/masked_3dgs/latest.json
 ```
 
-When `run_full_pipeline.py --metrics` is used, this script runs automatically after 3DGS training. For TFG reporting, prefer `test.masked_object` when a test split exists; `full_image` can look better when the background dominates the frame.
+When `run_full_pipeline.py --metrics` is used, this script runs automatically after 3DGS training.
 
 ### `scripts/estimate_sugar_bbox.py`
 
