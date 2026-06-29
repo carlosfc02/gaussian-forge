@@ -588,6 +588,15 @@
   color: var(--gf-success);
 }
 
+
+.scene-detail-metric-subtitle {
+  margin: 0;
+  color: var(--gf-text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .scene-detail-metric-highlights {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

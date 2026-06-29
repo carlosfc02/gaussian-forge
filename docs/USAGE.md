@@ -263,6 +263,22 @@ data/3dgs/<scene>/gs/model
 
 Use `--mask-loss` when training on original RGB images with aligned masks.
 
+### `scripts/evaluate_3dgs_masked_metrics.py`
+
+Evaluates a trained 3DGS model with both full-image and object-masked metrics:
+
+```bash
+python scripts/evaluate_3dgs_masked_metrics.py --scene-dir 3dgs/<scene> --model-dir 3dgs/<scene>/gs/model --split both
+```
+
+Metrics include L1, PSNR, SSIM and LPIPS. The report is written to:
+
+```text
+data/3dgs/<scene>/metrics/masked_3dgs/latest.json
+```
+
+When `run_full_pipeline.py --metrics` is used, this script runs automatically after 3DGS training. For TFG reporting, prefer `test.masked_object` when a test split exists; `full_image` can look better when the background dominates the frame.
+
 ### `scripts/estimate_sugar_bbox.py`
 
 Estimates a 3D foreground bounding box for SuGaR from COLMAP points and masks.

@@ -30,7 +30,7 @@ from app.schemas.scene import MetricStageRead, SceneMetricsRead, SceneRead, Scen
 ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv'}
 SUGAR_OBJ_PACKAGE_EXTENSIONS = {'.obj', '.mtl', '.png'}
 THUMBNAIL_EXTENSION = '.jpg'
-METRIC_STAGE_DIRS = ('bbox_estimate', 'colmap', 'train_3dgs', 'train_sugar')
+METRIC_STAGE_DIRS = ('bbox_estimate', 'colmap', 'train_3dgs', 'masked_3dgs', 'train_sugar', 'masked_sugar')
 
 logger = logging.getLogger(__name__)
 

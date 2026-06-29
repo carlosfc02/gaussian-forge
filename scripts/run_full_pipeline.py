@@ -809,6 +809,62 @@ def build_official_sugar_metrics_command(
     return command, config_path, sugar_scene_output_dir / "metrics"
 
 
+def find_latest_refined_sugar_ply(data_root: Path, sugar_output_root_arg: str, sugar_output_name: str) -> Path | None:
+    sugar_output_root = resolve_path_under_root(data_root, sugar_output_root_arg, "sugar-output-root")
+    search_roots = [
+        sugar_output_root / sugar_output_name / "refined_ply",
+        *sorted(sugar_output_root.glob(f"{sugar_output_name}_*/refined_ply")),
+    ]
+    candidates: list[Path] = []
+    for search_root in search_roots:
+        if search_root.is_dir():
+            candidates.extend(path for path in search_root.rglob("*.ply") if path.is_file())
+    return max(candidates, key=lambda path: path.stat().st_mtime) if candidates else None
+
+
+def run_masked_sugar_metrics_stage(
+    args: argparse.Namespace,
+    root: Path,
+    data_root: Path,
+    scene_dir: Path,
+    dataset_dir: str,
+    gs_model_dir_arg: str,
+    sugar_output_name: str,
+    log_dir: Path,
+    manifest: dict,
+    required: bool,
+) -> None:
+    sugar_ply = find_latest_refined_sugar_ply(data_root, args.sugar_output_root, sugar_output_name)
+    if sugar_ply is None:
+        message = f"No refined SuGaR PLY found for masked metrics under {args.sugar_output_root}/{sugar_output_name}."
+        if required:
+            raise FileNotFoundError(message)
+        print(f"[warn] {message} Skipping masked SuGaR metrics.")
+        return
+
+    masked_sugar_cmd = [
+        sys.executable,
+        str(root / "scripts" / "evaluate_sugar_masked_metrics.py"),
+        "--scene-dir",
+        dataset_dir,
+        "--base-model-dir",
+        gs_model_dir_arg,
+        "--sugar-ply",
+        sugar_ply.relative_to(data_root).as_posix(),
+        "--split",
+        "both",
+        "--masks-dir",
+        args.masks_dir or "masks",
+    ]
+    if args.white_background:
+        masked_sugar_cmd.append("--white-background")
+    run_stage(masked_sugar_cmd, "masked_sugar_metrics", log_dir, manifest)
+    latest_masked_manifest = extract_latest_stage_manifest(scene_dir, "masked_sugar")
+    if latest_masked_manifest is not None:
+        manifest["latest_masked_sugar_manifest"] = latest_masked_manifest
+    write_json(log_dir / "full_pipeline_manifest.json", manifest)
+
+
 def main() -> int:
     args = parse_args()
     preset = PRESETS[args.preset]
@@ -999,6 +1055,29 @@ def main() -> int:
                 manifest["latest_train_3dgs_manifest"] = latest_train_manifest
             write_json(log_dir / "full_pipeline_manifest.json", manifest)
 
+            if args.metrics:
+                masked_metrics_cmd = [
+                    sys.executable,
+                    str(root / "scripts" / "evaluate_3dgs_masked_metrics.py"),
+                    "--scene-dir",
+                    dataset_dir,
+                    "--model-dir",
+                    gs_model_dir_arg,
+                    "--iteration",
+                    str(iterations),
+                    "--split",
+                    "both",
+                    "--masks-dir",
+                    args.masks_dir or "masks",
+                ]
+                if args.white_background:
+                    masked_metrics_cmd.append("--white-background")
+                run_stage(masked_metrics_cmd, "masked_3dgs_metrics", log_dir, manifest)
+                latest_masked_manifest = extract_latest_stage_manifest(scene_dir, "masked_3dgs")
+                if latest_masked_manifest is not None:
+                    manifest["latest_masked_3dgs_manifest"] = latest_masked_manifest
+                write_json(log_dir / "full_pipeline_manifest.json", manifest)
+
         if not skip_sugar:
             sugar_cmd = [
                 sys.executable,
@@ -1056,6 +1135,18 @@ def main() -> int:
                     "metrics_dir": str(sugar_metrics_dir),
                 }
                 write_json(log_dir / "full_pipeline_manifest.json", manifest)
+                run_masked_sugar_metrics_stage(
+                    args,
+                    root,
+                    data_root,
+                    scene_dir,
+                    dataset_dir,
+                    gs_model_dir_arg,
+                    sugar_output_name,
+                    log_dir,
+                    manifest,
+                    required=True,
+                )
         elif args.metrics:
             validate_official_sugar_metrics_checkpoint(gs_model_dir)
             sugar_metrics_cmd, sugar_metrics_config, sugar_metrics_dir = build_official_sugar_metrics_command(
@@ -1072,6 +1163,18 @@ def main() -> int:
                 "metrics_dir": str(sugar_metrics_dir),
             }
             write_json(log_dir / "full_pipeline_manifest.json", manifest)
+            run_masked_sugar_metrics_stage(
+                args,
+                root,
+                data_root,
+                scene_dir,
+                dataset_dir,
+                gs_model_dir_arg,
+                sugar_output_name,
+                log_dir,
+                manifest,
+                required=False,
+            )
 
         manifest["status"] = "success"
         manifest["finished_at"] = utc_now_iso()
