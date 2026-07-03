@@ -51,7 +51,7 @@
     grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
     gap: 1.25rem;
   }
-  
+
   .project-form,
   .pipeline-preview {
     background:
@@ -213,13 +213,16 @@
   .form-actions .btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
   
-    min-height: 2.75rem;
+    width: 10.5rem;
+    height: 2.75rem;
     padding-inline: 1rem;
   
     border-radius: 0;
     font-weight: 700;
+    white-space: nowrap;
   }
   
   .form-actions .btn-primary {
@@ -322,6 +325,5 @@
   
     .form-actions .btn {
       justify-content: center;
-      width: 100%;
     }
   }

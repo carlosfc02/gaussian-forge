@@ -45,6 +45,7 @@ data/**
 !data/3dgs/.gitkeep
 !data/frames_videos/
 !data/frames_videos/.gitkeep
+out/**
 
 # Model checkpoints and downloaded weights
 models/**
