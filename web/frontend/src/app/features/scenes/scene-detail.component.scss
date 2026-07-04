@@ -129,6 +129,21 @@
   outline: none;
 }
 
+.scene-detail-select option {
+  background: #101418;
+  color: var(--gf-text);
+}
+
+.scene-detail-select option:checked {
+  background: #17232b;
+  color: #ffffff;
+}
+
+.scene-detail-select option:hover {
+  background: #1b2f38;
+  color: #ffffff;
+}
+
 .scene-detail-run-meta {
   display: grid;
   gap: 0.65rem;

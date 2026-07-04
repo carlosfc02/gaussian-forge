@@ -3,7 +3,7 @@
   <span class="scene-detail-card__meta">{{ run?.status ?? 'ready' }}</span>
 </div>
 <label class="scene-detail-run-control" for="pipelinePreset"><span>Preset</span>
-  <select id="pipelinePreset" class="scene-detail-select bg-dark text-light" [ngModel]="selectedPreset" 
+  <select id="pipelinePreset" class="scene-detail-select" [ngModel]="selectedPreset" 
   (ngModelChange)="selectedPresetChange.emit($event)" [disabled]="isRunning || isStarting">@for (preset of presets; track preset.name) {
     <option [value]="preset.name">{{ presetLabel(preset.name) }} - {{ presetSummary(preset) }}</option>}
   </select>

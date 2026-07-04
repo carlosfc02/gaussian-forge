@@ -103,6 +103,28 @@ class PipelineLiveLogTests(unittest.TestCase):
             self.assertEqual(errors, [])
             self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["sequence"], 99)
 
+    def test_dn_consistency_metrics_use_official_density_artifact_name(self) -> None:
+        params = {
+            "surface_level": "0.3",
+            "n_vertices_in_mesh": "1000000",
+            "gaussians_per_triangle": "1",
+            "refinement_iterations": "15000",
+        }
+
+        refined_dir = run_full_pipeline.expected_refined_sugar_dir(
+            Path("sugar_output") / "bagels",
+            "source",
+            "dn_consistency",
+            params,
+        )
+
+        self.assertIn("densityestim02_sdfnorm02", refined_dir.as_posix())
+        self.assertNotIn("dn_consistencyestim", refined_dir.as_posix())
+
+    def test_sugar_metrics_regularization_maps_dn_consistency_to_density(self) -> None:
+        self.assertEqual(run_full_pipeline.sugar_metrics_regularization_type("dn_consistency"), "density")
+        self.assertEqual(run_full_pipeline.sugar_metrics_regularization_type("sdf"), "sdf")
+
 
 if __name__ == "__main__":
     unittest.main()

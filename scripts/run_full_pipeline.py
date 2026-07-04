@@ -698,6 +698,10 @@ def sugar_metric_code(value: str) -> str:
         return value.replace(".", "")
 
 
+def sugar_metrics_regularization_type(regularization_type: str) -> str:
+    return "density" if regularization_type == "dn_consistency" else regularization_type
+
+
 def expected_refined_sugar_dir(
     sugar_scene_output_dir: Path,
     scene_name: str,
@@ -708,7 +712,7 @@ def expected_refined_sugar_dir(
     decimation = sugar_metric_code(params["n_vertices_in_mesh"])
     gaussians = sugar_metric_code(params["gaussians_per_triangle"])
     dirname = (
-        f"sugarfine_3Dgs7000_{regularization_type}estim02_sdfnorm02_"
+        f"sugarfine_3Dgs7000_{sugar_metrics_regularization_type(regularization_type)}estim02_sdfnorm02_"
         f"level{level}_decim{decimation}_normalconsistency01_gaussperface{gaussians}"
     )
     return sugar_scene_output_dir / "refined" / scene_name / dirname
@@ -785,7 +789,7 @@ def build_official_sugar_metrics_command(
         "--scene_config",
         config_path_in_container,
         "--regularization_type",
-        args.sugar_regularization,
+        sugar_metrics_regularization_type(args.sugar_regularization),
         "--surface_level",
         params["surface_level"],
         "--n_vertices_in_mesh",
