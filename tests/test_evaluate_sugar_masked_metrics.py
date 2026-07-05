@@ -52,6 +52,21 @@ class MaskedSugarMetricsTests(unittest.TestCase):
             self.assertEqual(checkpoint, expected_checkpoint)
             self.assertEqual(mesh, coarse_mesh)
 
+    def test_prepare_sugar_wrapper_model_strips_camera_extensions(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            scene_dir = Path(temporary_directory) / "3dgs" / "bagels"
+            base_model_dir = scene_dir / "gs" / "model"
+            point_cloud = base_model_dir / "point_cloud" / "iteration_30000" / "point_cloud.ply"
+            point_cloud.parent.mkdir(parents=True)
+            point_cloud.write_text("ply", encoding="utf-8")
+            (base_model_dir / "cameras.json").write_text(json.dumps([{"img_name": "000000.png"}], indent=2), encoding="utf-8")
+            (base_model_dir / "cfg_args").write_text("cfg", encoding="utf-8")
+
+            compat_dir = masked_sugar.prepare_sugar_wrapper_model(base_model_dir, scene_dir)
+            cameras = json.loads((compat_dir / "cameras.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(cameras[0]["img_name"], "000000")
+            self.assertTrue((compat_dir / "point_cloud" / "iteration_30000" / "point_cloud.ply").is_file())
     def test_build_sugar_metrics_command_uses_sugar_container_and_official_inputs(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             data_root = Path(temporary_directory) / "data"

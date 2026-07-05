@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import time
@@ -86,6 +87,46 @@ def resolve_sugar_artifacts(sugar_ply: Path) -> tuple[Path, Path]:
     return refined_checkpoint, coarse_mesh
 
 
+def sanitize_sugar_camera_name(name: str) -> str:
+    suffix = Path(name).suffix.lower()
+    return Path(name).stem if suffix in {".png", ".jpg", ".jpeg"} else name
+
+
+def copy_file_if_needed(src: Path, dst: Path) -> None:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if dst.exists():
+        src_stat = src.stat()
+        dst_stat = dst.stat()
+        if src_stat.st_size == dst_stat.st_size and int(src_stat.st_mtime) == int(dst_stat.st_mtime):
+            return
+    shutil.copy2(src, dst)
+
+
+def prepare_sugar_wrapper_model(base_model_dir: Path, scene_dir: Path) -> Path:
+    cameras_path = base_model_dir / "cameras.json"
+    point_cloud = base_model_dir / "point_cloud" / "iteration_30000" / "point_cloud.ply"
+    if not cameras_path.is_file():
+        raise FileNotFoundError(f"Base 3DGS cameras.json does not exist: {cameras_path}")
+    if not point_cloud.is_file():
+        raise FileNotFoundError(f"Base 3DGS 30000 point cloud does not exist: {point_cloud}")
+
+    compat_dir = scene_dir / "gs" / "model_sugar_masked_compat"
+    compat_dir.mkdir(parents=True, exist_ok=True)
+    cameras = json.loads(cameras_path.read_text(encoding="utf-8"))
+    sanitized_cameras = []
+    for camera in cameras:
+        new_camera = dict(camera)
+        new_camera["img_name"] = sanitize_sugar_camera_name(str(new_camera.get("img_name", "")))
+        sanitized_cameras.append(new_camera)
+    (compat_dir / "cameras.json").write_text(json.dumps(sanitized_cameras, indent=2), encoding="utf-8")
+
+    copy_file_if_needed(point_cloud, compat_dir / "point_cloud" / "iteration_30000" / "point_cloud.ply")
+    for optional_name in ("cfg_args", "input.ply", "exposure.json"):
+        optional_src = base_model_dir / optional_name
+        if optional_src.exists():
+            copy_file_if_needed(optional_src, compat_dir / optional_name)
+    return compat_dir
+
 def build_sugar_metrics_command(
     args: argparse.Namespace,
     data_root: Path,
@@ -162,7 +203,8 @@ def run_host(args: argparse.Namespace) -> int:
     if not base_model_dir.is_dir():
         raise FileNotFoundError(f"Base 3DGS model directory does not exist: {base_model_dir}")
 
-    command = build_sugar_metrics_command(args, data_root, scene_dir, source_dir, base_model_dir, output_dir, sugar_ply, refined_checkpoint, coarse_mesh, render_dir)
+    wrapper_model_dir = prepare_sugar_wrapper_model(base_model_dir, scene_dir)
+    command = build_sugar_metrics_command(args, data_root, scene_dir, source_dir, wrapper_model_dir, output_dir, sugar_ply, refined_checkpoint, coarse_mesh, render_dir)
     print("[cmd]", build_command_string(command))
     completed = subprocess.run(command, check=True)
 
