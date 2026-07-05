@@ -293,7 +293,7 @@ def run_inside_container(args: argparse.Namespace) -> int:
     torch.cuda.set_device(0)
     nerfmodel_30k = GaussianSplattingWrapper(
         source_path=str(source_dir),
-        output_path=str(base_model_dir),
+        output_path=f"{base_model_dir.as_posix()}/",
         iteration_to_load=30000,
         load_gt_images=True,
         eval_split=eval_split_requested,
