@@ -41,6 +41,7 @@ RUN git clone --recursive https://github.com/Anttwo/SuGaR.git /opt/SuGaR
 WORKDIR /opt/SuGaR
 
 RUN conda env create -f environment.yml \
+    && conda run -n sugar pip install open3d \
     && conda run -n sugar pip install -e ./gaussian_splatting/submodules/diff-gaussian-rasterization \
     && conda run -n sugar pip install -e ./gaussian_splatting/submodules/simple-knn \
     && git clone https://github.com/NVlabs/nvdiffrast /opt/nvdiffrast \
