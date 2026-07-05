@@ -799,7 +799,7 @@ def build_official_sugar_metrics_command(
         "--refinement_iterations",
         params["refinement_iterations"],
         "--evaluate_vanilla",
-        "True",
+        "False",
     ]
     shell_command = " && ".join(
         [
