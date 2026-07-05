@@ -81,6 +81,8 @@ class MaskedSugarMetricsTests(unittest.TestCase):
             )
 
             self.assertIn("sugar", command)
+            self.assertIn("conda", command)
+            self.assertIn("--no-capture-output", command)
             self.assertIn("/app/scripts/evaluate_sugar_masked_metrics.py", command)
             self.assertIn("--inside-container", command)
             self.assertIn("--refined-checkpoint", command)
