@@ -104,6 +104,13 @@ def run_command_capture(command: list[str], executed_commands: list[str] | None 
     return output
 
 
+def parse_last_integer_line(output: str) -> int:
+    for line in reversed(output.splitlines()):
+        stripped = line.strip()
+        if re.fullmatch(r"\d+", stripped):
+            return int(stripped)
+    raise ValueError(output)
+
 def docker_compose_run(service: str, args: list[str]) -> list[str]:
     return ["docker", "compose", "run", "--rm", service, *args]
 
@@ -293,7 +300,7 @@ def undistort_3dgs_masks(
     reset_path_in_container(temp_output_in_container, executed_commands)
 
     try:
-        copied = int(copied_output.strip().splitlines()[-1])
+        copied = parse_last_integer_line(copied_output)
     except (IndexError, ValueError) as exc:
         raise RuntimeError(f"Could not parse undistorted mask copy count: {copied_output}") from exc
     if copied == 0:
